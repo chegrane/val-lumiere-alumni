@@ -1,0 +1,24 @@
+# Contexte personnel : jamais dans le dépôt public
+private/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Données générées et bases locales
+*.db
+*.sqlite
+*.sqlite3
+data/generated/
+
+# Secrets et configuration locale
+.env
+*.local
+
+# Éditeurs et systèmes
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
