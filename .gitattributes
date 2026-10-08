@@ -1,0 +1,6 @@
+# Keep Unix line endings (LF) everywhere: the project runs in Ubuntu under WSL2.
+* text=auto eol=lf
+
+# Windows-only scripts, if any are added later
+*.ps1 text eol=crlf
+*.bat text eol=crlf
