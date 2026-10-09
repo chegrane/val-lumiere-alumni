@@ -44,7 +44,8 @@ An **educational, open-source** project: the alumni database of a **fictional** 
 - **Check the time** with `TZ=America/Montreal date` before dating anything.
 - **One commit per working session**, even small. Every choice goes into `DECISIONS.md`: the choice, the reason, the rejected option.
 - **Work sessions are 1 h 30** (project block: 13:00–14:30). He gets excited and forgets the time: help him stop at the end of the block.
-- **Security:** never write passwords, tokens or personal identifiers in the repo. Ibrahim does `git push` himself.
+- **Security:** never write passwords, tokens or personal identifiers in the repo.
+- **Push:** Ibrahim does `git push` himself (Claude pushes only when he asks). **Claude reminds him to commit and push** at the end of each working day, so no work is lost, and whenever a milestone (a logical step) is finished.
 
 ## 5. Next step
 
