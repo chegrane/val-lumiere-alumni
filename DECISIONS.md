@@ -72,6 +72,13 @@ Newest entries at the bottom.
 - **Why:** publish a readable project, not a construction site.
 - **Rejected:** public from the first commit.
 
+## Working method
+
+### D-013 — Two tracking files: `TASKS_TODO.md` and `ROADMAP.md` (2026-10-08)
+- **Choice:** `TASKS_TODO.md` holds everything actionable (one current objective, an Inbox for bugs and ideas found along the way, next steps, done milestones); `ROADMAP.md` holds the phases of the project.
+- **Why:** stay on one objective without losing what comes up; one place for the plan, so it cannot contradict itself.
+- **Rejected:** a single `PROJECT_PLAN.md` or `ROADMAP.md` (mixes the big picture with daily tasks); GitHub Issues for now (simpler to start with a file; may come when the repository is public).
+
 ## Open questions
 
 - **Sort order of French names:** the database uses the default `C.UTF-8` collation, which sorts `Émilie` after `Zoé`. Decide in slice 2 whether to use a French (Canada) collation.

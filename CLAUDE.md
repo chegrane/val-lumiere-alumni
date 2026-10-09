@@ -8,7 +8,8 @@ Claude has no memory between sessions: everything that must last is in this repo
 1. `private/contexte_emploi.md` — **why** this project exists (short-term goal, deadlines). Private, in French, never published.
 2. `private/projet_diplomes_brief.md` — the story, the slices, the first entities, the five modelling questions, the long-term vision, the decisions on name and language (French).
 3. `private/choix_techniques.md` — the technical choices **with their reasons** and the rejected options, including the comparison of database systems (French).
-4. `DECISIONS.md` and `docs/` once they exist.
+4. `TASKS_TODO.md` — **the current objective** and everything waiting (bugs, ideas, next steps). `ROADMAP.md` — the big picture.
+5. `DECISIONS.md` and `docs/`.
 
 If `private/` is missing (for example on another machine), ask Ibrahim for it before going further.
 
@@ -47,11 +48,9 @@ An **educational, open-source** project: the alumni database of a **fictional** 
 
 ## 5. Next step
 
-**Slice 0–1, first modelling session, no code.** With Ibrahim:
-1. Reread the story (`private/projet_diplomes_brief.md`, section 3).
-2. Answer the five modelling questions (section 6 of the brief): several degrees per person? several emails, which is primary? name changes? how to represent "do not contact me"? delete or anonymize? how to recognize that two records are the same person?
-3. List the entities and their attributes in `docs/model.md`, **written by him**.
-4. First commit.
+**See `TASKS_TODO.md`, section "Now".** It is the only place where the plan lives; do not repeat it here.
+- A bug, an idea or a question comes up mid-task: add one dated line to its **Inbox**, then continue the current objective.
+- When the objective is done: help Ibrahim sort the Inbox, update **Done** and `ROADMAP.md`.
 
 Proposed repository layout (to create as needed, not all at once):
 ```
