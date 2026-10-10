@@ -7,6 +7,10 @@ An educational, open-source project: designing and building the alumni database 
 
 **Status:** work in progress — the story and the data model come first.
 
+## Documents
+
+- [The story](docs/story.md): how we go from a human need to a well-defined project.
+
 ## Setup
 
 Requirements: **PostgreSQL** (tested with 18.6) and **Git**. On Windows, use Ubuntu under **WSL2** first.

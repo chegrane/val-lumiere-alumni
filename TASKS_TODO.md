@@ -11,7 +11,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 
 ## Now — Slice 0–1: framing and model (no code)
 
-- [ ] Reread the story (draft: `private/projet_diplomes_brief.md`, section 3)
+- [x] Reread the story (draft: `private/projet_diplomes_brief.md`, section 3)
 - [ ] Answer the five modelling questions (section 6 of the same brief):
   - [ ] Several degrees per person?
   - [ ] Several emails per person? Which one is primary?
@@ -19,7 +19,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
   - [ ] "Do not contact me": one field, or consent per purpose?
   - [ ] Delete a person, or anonymise and keep the statistics?
   - [ ] How do we recognise that two records are the same person?
-- [ ] `docs/story.md`: the public story, in English
+- [x] `docs/story.md`: the public story, in English (reviewed twice by a second AI)
 - [ ] `docs/model.md`: entities and attributes, **written by Ibrahim**
 - [ ] `docs/glossary.md`: French–English terms
 - [ ] Record the answers in `DECISIONS.md`, then commit
@@ -48,6 +48,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 - [ ] Consent, retention, deletion or anonymisation, access roles
 
 **Before going public**
+- [ ] Check the legal statements in `docs/story.md` (access, correction, removal, responsibility, deadlines) against the Access Act on LégisQuébec
 - [ ] Confirm the licence (MIT proposed) and add `LICENSE`
 - [ ] `README.fr.md`
 - [ ] Reread everything; make the repository public
