@@ -79,6 +79,38 @@ Newest entries at the bottom.
 - **Why:** stay on one objective without losing what comes up; one place for the plan, so it cannot contradict itself.
 - **Rejected:** a single `PROJECT_PLAN.md` or `ROADMAP.md` (mixes the big picture with daily tasks); GitHub Issues for now (simpler to start with a file; may come when the repository is public).
 
+### D-018 — Fast, with understanding (2026-10-10)
+- **Choice:** the AI assistant may draft documents, model and code; nothing is committed until Ibrahim understands and accepts it. Important parts are checked with a short quiz.
+- **Why:** this is a personal learning project; speed matters, understanding matters more.
+- **Rejected:** Ibrahim writing every file himself (slow, and the thinking is already shared in discussion); accepting drafts without checking (fast, but he could not explain them).
+
+## Model (slice 1)
+
+### D-014 — A person and their degrees are two classes (2026-10-10)
+- **First idea:** one table holding the person and their degree (name, birth date, faculty, program, year…). Simple, and every statistic is one filter away.
+- **Problem:** a person with two degrees becomes two rows, with name and birth date copied twice. Change the name in one row and not the other, and the table itself has created the duplicate the story complains about.
+- **Choice:** `Person` 1 ── 0..* `Degree` (normalisation: each fact stored once).
+
+### D-015 — Internal primary key; the student number is an attribute (2026-10-10)
+- **First idea:** use the student number as the primary key, or build a code from the name (two letters of the family name, two of the first name, plus digits). It is unique and follows the person for life.
+- **Problems:**
+  1. Old spreadsheets (1990s) have no student number. A primary key cannot be empty, so these people could not be entered at all. This reason alone is decisive.
+  2. Old files contain typing errors. Correcting a primary key means correcting it in every table that refers to it.
+  3. The student number belongs to another system (the registrar). If its format changes or two records are merged there, our keys break. Common rule: do not use someone else's identifier as your own primary key.
+  4. The student number identifies a person. As a key, it would be copied into every table that refers to people.
+  5. A code built from the name changes when the name changes (Sophie Gagnon → Sophie Roy), and a key must never change.
+- **Choice:** `person_id`, an internal number with no meaning outside our system, is the primary key. `student_number` is an attribute, `UNIQUE` and optional: the best way to **find** a person, not the key.
+
+### D-016 — Consent: one row per person, per kind of contact, per answer (2026-10-10)
+- **First idea (option A):** one row per person with one yes/no column per kind of contact (newsletter, events, offers).
+- **Problems:** the previous answer is overwritten, so we cannot say since when or how the person answered (story question 6), and we cannot prove that consent was given. Adding a new kind of contact means changing the table.
+- **Choice (option B):** one row per person, per kind of contact and per answer, with the date, the channel and who recorded it. The current answer is obtained with a view. The rows look repetitive, but each one is a different fact: the history.
+
+### D-017 — Fields of expertise: many per person, from a shared list (2026-10-10)
+- **Choice:** `Person` *──* `Field` through `PersonExpertise`. `Field` is a reference list, shared with the programs.
+- **Why:** after years of work, a person knows several fields; assignment offers are sent "in the right field", which becomes a join instead of a comparison of free text.
+- **Rejected:** one free-text "expertise" attribute on `Person` (one value only, and "civil engineering" typed five different ways).
+
 ## Open questions
 
 - **Sort order of French names:** the database uses the default `C.UTF-8` collation, which sorts `Émilie` after `Zoé`. Decide in slice 2 whether to use a French (Canada) collation.

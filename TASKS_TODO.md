@@ -20,7 +20,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
   - [ ] Delete a person, or anonymise and keep the statistics?
   - [ ] How do we recognise that two records are the same person?
 - [x] `docs/story.md`: the public story, in English (reviewed twice by a second AI)
-- [ ] `docs/model.md`: entities and attributes, **written by Ibrahim**
+- [ ] `docs/model.md`: drafted by Claude from our discussion, **accepted by Ibrahim after a quiz**
 - [ ] `docs/glossary.md`: French–English terms
 - [ ] Record the answers in `DECISIONS.md`, then commit
 

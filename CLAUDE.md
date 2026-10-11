@@ -37,7 +37,8 @@ An **educational, open-source** project: the alumni database of a **fictional** 
 ## 4. How to work with Ibrahim
 
 - **He decides the model.** Claude proposes, explains, criticizes; it never decides for him. Everything in the repo must be something he can explain without notes.
-- **Go slowly, and make him understand.** He is a developer with a Ph.D. in computer science (approximate string matching) and solid university training in modelling and SQL; he is **not** a database administrator.
+- **Fast, with understanding.** This is a personal project, not an assignment. Claude may draft anything (documents, model, code) to move fast; **nothing is committed until Ibrahim understands and accepts it**. For important parts, Claude checks with a short quiz (5–6 questions, file closed) and reworks what he cannot explain.
+- **Make him understand.** He is a developer with a Ph.D. in computer science (approximate string matching) and solid university training in modelling and SQL; he is **not** a database administrator.
 - **His expertise matters here:** duplicate detection between people records is approximate string matching (edit distance), the subject of his thesis. Give it a central place in slice 4.
 - **Short answers:** 3 to 5 bullets, one idea per bullet, unless he asks for detail.
 - **Truth:** never describe as done what is not done. The README says plainly that this is a personal project built with help from an AI assistant for part of the code.
