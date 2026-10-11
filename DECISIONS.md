@@ -89,7 +89,7 @@ Newest entries at the bottom.
 ### D-014 — A person and their degrees are two classes (2026-10-10)
 - **First idea:** one table holding the person and their degree (name, birth date, faculty, program, year…). Simple, and every statistic is one filter away.
 - **Problem:** a person with two degrees becomes two rows, with name and birth date copied twice. Change the name in one row and not the other, and the table itself has created the duplicate the story complains about.
-- **Choice:** `Person` 1 ── 0..* `Degree` (normalisation: each fact stored once).
+- **Choice:** `Person` 1 ── 1..* `Degree` (normalisation: each fact stored once). Every person has at least one degree.
 
 ### D-015 — Internal primary key; the student number is an attribute (2026-10-10)
 - **First idea:** use the student number as the primary key, or build a code from the name (two letters of the family name, two of the first name, plus digits). It is unique and follows the person for life.
@@ -110,6 +110,24 @@ Newest entries at the bottom.
 - **Choice:** `Person` *──* `Field` through `PersonExpertise`. `Field` is a reference list, shared with the programs.
 - **Why:** after years of work, a person knows several fields; assignment offers are sent "in the right field", which becomes a join instead of a comparison of free text.
 - **Rejected:** one free-text "expertise" attribute on `Person` (one value only, and "civil engineering" typed five different ways).
+
+### D-019 — Removal and the do-not-contact list (2026-10-10)
+- **First idea:** on removal, empty the names but keep the student number on the `Person` row when the person had said "stop".
+- **Problem:** the kept degrees point to that row: student number + program + year identifies the person again. And a removal erased the death record, so a deceased graduate could come back from an import and be invited.
+- **Choice:** removal empties every identifying attribute (names, student number, birth date, death information, name at graduation) and detaches the kept requests from the person. For **every** removal, the student number alone goes into `DoNotContact` (a *suppression list*), with the reason (`deceased`, `stop` or `removed`) and the date; it is linked to nothing. The list means "never contact, for anything": any stop becomes total at removal. A listed number only ever creates anonymous data: imports ignore its old degrees; a new degree is attached to a new, already-removed person (people counted twice in that rare case; degree totals stay right).
+- **Why every removal:** with the student number emptied, the next import would bring the person back with full identity, and count their degrees twice.
+- **Accepted limits:** a person without a student number cannot be recognised after removal; dates can still hint at a link; archived spreadsheets follow the university's retention rules.
+
+### D-020 — The current consent answer, and imports (2026-10-10)
+- **Problem:** with a date only, a "yes" and a "stop" given the same day are tied; and an old list imported today could hide an earlier "stop".
+- **Choice:** two moments per answer: `given_on` (when the person answered) and `recorded_at` (when we recorded it). One rule, independent of the order of imports: an answer given directly by the person (email, phone, letter) always wins over an imported one; among direct answers, the latest `given_on` wins, then the latest `recorded_at`; with only imported answers, any "no" wins.
+- **Also:** a consent may name an email of the same person; if it stops working, nothing is sent for that kind of message (no fallback to another address).
+- **Rejected:** ordering by the date of entry only (an import would always win); ordering imported answers by their dates (an undated "no" could lose, depending on the import order).
+
+### D-021 — Left for later, on purpose (2026-10-10)
+- **Deferred to slices 3–4:** staging tables for raw imports; where duplicate decisions are kept and how two people are merged; dated quality measurements for "better or worse, month after month".
+- **Accepted limit:** a program belongs to one faculty, without history.
+- **Why:** part 1 of the model stores what the story needs every day; these belong to the import and quality work, and will be designed with it.
 
 ## Open questions
 

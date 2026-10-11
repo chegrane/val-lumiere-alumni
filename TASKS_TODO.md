@@ -37,6 +37,8 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 **Slice 2 — Schema**
 - [ ] `sql/schema.sql` from the model
 - [ ] Decide the sort order for French names (`C.UTF-8` or a French–Canada collation)
+- [ ] `Contact`: add UNIQUE (`contact_id`, `person_id`) for the two-column link from `Consent`; deletion of a contact blocked (`ON DELETE RESTRICT`), except at removal; a returning old address reactivates its `obsolete` row
+- [ ] Write SQL tests for the removal, import and consent rules (Robert, Karim, Léa scenarios)
 
 **Slice 3 — Dirty data**
 - [ ] Python virtual environment; install Faker, pandas, psycopg 3
