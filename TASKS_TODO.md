@@ -30,6 +30,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 - 2026-10-08 — `.gitignore`: comments are in French; translate to English (language rule)
 - 2026-10-08 — Create the strict reviewer agent (`.claude/agents/`) and write the review loop rule (max 2–3 rounds) in `CLAUDE.md`
 - 2026-10-08 — `CLAUDE.md`: soften the 1 h 30 block rule (remind once, then follow Ibrahim's choice)
+- 2026-10-10 — Quiz again, cold, at the start of the next model session: where is the former name stored and why; what is kept after a removal when the person had said "stop"; how many rows "stop everything" creates
 
 ## Next
 
