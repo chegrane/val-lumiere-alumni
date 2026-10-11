@@ -30,7 +30,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 - 2026-10-08 — `.gitignore`: comments are in French; translate to English (language rule)
 - 2026-10-08 — Create the strict reviewer agent (`.claude/agents/`) and write the review loop rule (max 2–3 rounds) in `CLAUDE.md`
 - 2026-10-08 — `CLAUDE.md`: soften the 1 h 30 block rule (remind once, then follow Ibrahim's choice)
-- 2026-10-10 — Quiz again, cold, at the start of the next model session: where is the former name stored and why; what is kept after a removal when the person had said "stop"; how many rows "stop everything" creates
+- 2026-10-10 — Quick cold check at the start of the next model session, **big lines only** (details stay in the files): why a person and their degrees are separate; why an internal key and not the student number; why history in the table and the current state in a view; why "stop" and "remove" are two different requests
 
 ## Next
 
