@@ -7,7 +7,7 @@ The story says **what** the university needs. This file says **how** we represen
 | Part | Question | Content |
 |---|---|---|
 | [1. Store](#1-store) | What do we keep, and how is it organised? | Classes, attributes, relationships, keys |
-| [2. Compute](#2-compute) | What do we get out of it? | The story's questions, as queries and views |
+| [2. Compute](queries.md) | What do we get out of it? | The story's questions, as queries and views (in its own file, [queries.md](queries.md)) |
 | [3. Check](#3-check) | How do we know it is right? | Constraints, then quality rules (slice 4) |
 
 Each choice follows the same path: **first idea → the problem it causes → the solution kept.** The full reasoning of each choice is in [DECISIONS.md](../DECISIONS.md).
@@ -69,8 +69,11 @@ classDiagram
     consent_id
     granted
     given_on
-    recorded_at
+    source_list_date
+    documented_source
     channel
+    entry
+    recorded_at
     recorded_by
   }
   class Request {
@@ -80,7 +83,7 @@ classDiagram
     channel
     handled_on
     outcome
-    reason
+    reason_code
     handled_by
   }
   class DoNotContact {
@@ -104,6 +107,7 @@ classDiagram
   class PersonExpertise
 
   Faculty "1" -- "*" Program
+  Faculty "1" -- "*" Degree : at graduation
   Field "1" -- "*" Program
   Program "1" -- "*" Degree
   Person "1" -- "1..*" Degree
@@ -155,6 +159,11 @@ classDiagram
 - *Problem:* old spreadsheets have no student number, and a key cannot be empty; the number belongs to the registrar; a code from the name changes with the name.
 - *Solution:* `person_id`, an internal number, is the key. `student_number` is an attribute, unique and optional: the best way to **find** a person.
 
+**Faculty: today's, and at graduation** ([D-025](../DECISIONS.md#d-025--faculty-at-graduation-stored-on-each-degree-2026-10-12))
+- *First idea:* a degree finds its faculty through its program (`Degree` → `Program` → `Faculty`).
+- *Problem:* if a program moves to another faculty in 2028, Karim's 2012 degree moves with it, and the statistics for 2012 change.
+- *Solution:* `Degree` also stores the faculty **at graduation**, as given by the registrar. `Program` keeps its faculty **today**. It is not duplication: the two can differ, and each is true for its own date.
+
 **Names**
 - `Person` holds the **current** name, used by the office.
 - `Degree.name_at_graduation` holds the name printed on the diploma, as given by the registrar. Sophie Roy's degree still says *Sophie Gagnon*: the former name is kept where it belongs, and only the staff who need it see it (part 3).
@@ -169,20 +178,25 @@ classDiagram
 **Consent: the whole history** ([D-016](../DECISIONS.md#d-016--consent-one-row-per-person-per-kind-of-contact-per-answer-2026-10-10))
 - *First idea:* one row per person, with one yes/no column per kind of contact.
 - *Problem:* the old answer is overwritten. We cannot say since when, or how, the person answered, nor prove it.
-- *Solution:* one row per answer: person, kind of contact, yes or no, the date the person answered (`given_on`), the moment we recorded it (`recorded_at`), channel, who recorded it. A new answer is a **new row**; old rows are never changed.
-- **The table stores the whole history; a view shows the current state** (part 2).
-- *Which answer is the current one?* ([D-020](../DECISIONS.md#d-020--the-current-consent-answer-and-imports-2026-10-10)) One rule, whatever the order of the imports: (a) an answer the person gave **directly** (email, phone, letter) always wins over an imported one; among direct answers, the latest `given_on` wins, then the latest `recorded_at`; (b) when there are only imported answers, **any "no" wins**, whatever the dates. An old list can never undo Robert's "stop".
+- *Solution:* one row per answer: person, kind of contact, yes or no, when the person answered, how they answered, how the record entered our database, and who recorded it. A new answer is a **new row**; old rows are never changed.
+- **The table stores the whole history; a view shows the current state** ([queries.md](queries.md)).
+- *Two different questions, two attributes* ([D-024](../DECISIONS.md#d-024--consent-the-effective-date-decides-on-the-same-date-no-wins-2026-10-12)). **How did the person answer?** (`channel`: email, phone, letter, unsubscribe link, unknown.) **How did the record enter our database?** (`entry`: typed by the staff, imported file, mailing system.) A first version mixed them in one column, and an unsubscribe link (which arrives through Office 365) lost to an older "yes".
+- *Which answer is the current one?* ([D-026](../DECISIONS.md#d-026--consent-three-kinds-of-evidence-2026-10-12)) Three kinds of evidence, three rules:
+  1. **The person's own choice**, with its real date: the latest wins; on the same date, "no" wins. Karim's unsubscribe (March) beats his "yes" (January).
+  2. **A "no" from a list** blocks contact from the day we receive the list. Only a **later** choice by the person can lift it.
+  3. **A "yes" from a list** counts only when there is nothing else, and only if the list documents a real consent (the newsletter sign-up form does; a reunion spreadsheet does not). Otherwise the answer is **unknown**: nothing is sent, and the person is asked to confirm.
+  - In one sentence: **an old "yes" can never cancel a "no", and a "yes" we cannot justify is not enough to send.**
 - *Where to send it?* A consent may name one contact (`contact_id`) of **the same person**: "newsletter to my personal email, offers to my work email". It must be an **email**. Empty: the preferred email. If the chosen address no longer works (`bounced` or `obsolete`), **we do not send** this kind of message, and the staff are alerted to ask the person again: Léa said "only my personal email", so another address would go against her choice.
 
 **Requests: a fact of their own**
 - *First idea:* an "asked to be removed" column, with a date, on the person.
 - *Problem:* a person may make several requests (stop, then access, then removal), and after a removal the column would disappear with the rest.
-- *Solution:* a `Request` class: type, date received, channel, and once handled: date, outcome (done, partly done, refused), reason and who handled it. "Each request is checked" (story) and "prove it" (question 9) have their home here. After a removal, the kept requests no longer say for whom (1.4). When Robert says "stop everything", one `Request` row produces three `Consent` rows ("no"), each pointing to that request: we can always trace why an answer changed.
+- *Solution:* a `Request` class: type, date received, channel, and once handled: date, outcome (done, partly done, refused), a reason **code** and who handled it. A code, not free text: free text could end up holding a name. "Each request is checked" (story) and "prove it" (question 9) have their home here. After a removal, the kept requests no longer say for whom (1.4). When Robert says "stop everything", one `Request` row produces three `Consent` rows ("no"), each pointing to that request: we can always trace why an answer changed.
 
 **Events: who registered, who came**
 - *First idea:* `Event` alone, with no link to people; the invitation list is just a query.
 - *Problem:* the story asks to record who registered and who came. That is a link between people and events, many to many.
-- *Solution:* the association class `Registration` (person, event, registration date, attended yes/no). *Whom to invite* stays a query (part 2): `audience` describes the target in words, and the list is computed with parameters chosen when it is prepared (a program, a faculty or a field, a range of years, or everyone).
+- *Solution:* the association class `Registration` (person, event, registration date, attended yes/no). *Whom to invite* stays a query ([queries.md](queries.md)): `audience` describes the target in words, and the list is computed with parameters chosen when it is prepared (a program, a faculty or a field, a range of years, or everyone).
 
 **Expertise: several fields per person** ([D-017](../DECISIONS.md#d-017--fields-of-expertise-many-per-person-from-a-shared-list-2026-10-10))
 - *First idea:* one free-text "expertise" on the person.
@@ -193,7 +207,7 @@ classDiagram
 - *Solution:* two attributes on `Person`: the date it was reported, and how we learned it (family, returned letter, obituary). When the date is filled, the person receives nothing (part 3). A reported death counts as "stop everything": it survives a removal (1.4).
 
 **Birth date — why keep it?**
-- It comes with the registrar's copy (story), and some old spreadsheets have it. Two different people can have the same name and the same graduation year; the birth date tells them apart when we look for duplicates (slice 4). The law asks us to keep only what is necessary; this is the reason it is necessary. It stays optional: old entries may not have it.
+- It comes with the registrar's copy (story), and some old spreadsheets have it. Two different people can have the same name and the same graduation year; the birth date tells them apart when we look for duplicates (slice 4). The law asks us to keep only what is necessary; this is the reason it is necessary. It stays optional (old entries may not have it), and it is seen only by the staff who look for duplicates (part 3).
 
 ### 1.3 Data dictionary: every attribute explained
 
@@ -228,7 +242,7 @@ classDiagram
 | `program_id` | integer | * | Identifier |
 | `name` | text | * | "Bachelor of Civil Engineering" |
 | `level` | text | * | `bachelor`, `master`, `doctorate`, `certificate`. Lets us count by level |
-| `faculty_id` | → `Faculty` | * | The faculty that offers it: department and faculty events target programs |
+| `faculty_id` | → `Faculty` | * | The faculty that offers it **today** |
 | `field_id` | → `Field` | * | Its field: an assignment offer in civil engineering reaches its graduates |
 
 #### `Person` — one graduate, once, whatever the number of degrees
@@ -252,7 +266,8 @@ classDiagram
 |---|---|---|---|
 | `degree_id` | integer | * | Identifier |
 | `person_id` | → `Person` | * | Who obtained it |
-| `program_id` | → `Program` | * | Which program (and through it, which faculty, level and field) |
+| `program_id` | → `Program` | * | Which program (and through it, which level and field) |
+| `faculty_id` | → `Faculty` | * | The faculty **at graduation**, as given by the registrar. Statistics by faculty use this one ([D-025](../DECISIONS.md#d-025--faculty-at-graduation-stored-on-each-degree-2026-10-12)) |
 | `graduation_year` | integer | * | Year of graduation: the most frequent filter in statistics |
 | `name_at_graduation` | text |  | Name printed on the diploma. Keeps the former name (Sophie *Gagnon*) where it belongs. Emptied on removal |
 | `source` | text | * | `registrar`, or the name of the old spreadsheet it came from. The office never corrects a registrar row. After a removal: only `registrar` or `spreadsheet`, without the file name |
@@ -291,30 +306,34 @@ classDiagram
 | `person_id` | → `Person` | * | Who answered |
 | `purpose_id` | → `ContactPurpose` | * | For what |
 | `granted` | boolean | * | Yes or no |
-| `given_on` | date | * ² | When the person answered: story question 6, and the proof the law asks for |
-| `recorded_at` | date and time | * | When we recorded it. Orders two answers given the same day |
-| `channel` | text | * | How: `email`, `phone`, `letter`, `import` |
-| `recorded_by` | text | * | Which staff member entered it. Becomes a link to a staff account in slice 5 |
+| `given_on` | date | * ² | The day the person **made the choice**: story question 6, and the proof the law asks for |
+| `source_list_date` | date |  | For an imported list: the date the list's information represents, if known. **Never** the export date |
+| `documented_source` | boolean | ³ | For an imported "yes": does the list document a real, specific consent (for example, the newsletter sign-up form)? If not, the "yes" does not count |
+| `channel` | text | * | **How the person answered:** `email`, `phone`, `letter`, `unsubscribe link`, `unknown` |
+| `entry` | text | * | **How the record entered our database:** `staff` (typed), `file import`, `mailing system` (Office 365) |
+| `recorded_at` | date and time | * | When we received or recorded it. For a list's "no", contact is blocked from this day |
+| `recorded_by` | text | * | Which staff member, or which import, entered it. Becomes a link to a staff account in slice 5 |
 | `contact_id` | → `Contact` |  | Where to send this kind of message. Must be an email of the same person (the link checks `contact_id` and `person_id` together). Empty = the preferred email. Not working = not sent |
 | `request_id` | → `Request` |  | The request that caused this answer, if any ("stop everything") |
 
-² Required, except for an imported answer whose date is unknown (`channel` = `import`).
+² Required, except for an answer from an imported list (`entry` = `file import`), where the day of the choice is usually unknown.
+³ Required for an imported answer, empty otherwise.
 
 #### `Request` — one request made by a person
 
 | Attribute | Type | Req. | Purpose |
 |---|---|---|---|
 | `request_id` | integer | * | Identifier |
-| `person_id` | → `Person` | * ³ | Who asked |
+| `person_id` | → `Person` | * ⁴ | Who asked |
 | `type` | text | * | `stop`, `remove`, `access`, `correction` |
 | `received_on` | date | * | Date received: the legal deadline starts here |
-| `channel` | text | * | `email`, `phone`, `letter` |
+| `channel` | text | * | `email`, `phone`, `letter`. An `access` or `correction` request must be **in writing** (`email` or `letter`); a phone call is noted as a first contact |
 | `handled_on` | date |  | Date it was completed. **Empty = still open**: one query lists every late request |
 | `outcome` | text |  | `done`, `partly done`, `refused`. Filled when handled |
-| `reason` | text |  | Why, when partly done or refused: "kept by law". **Never a name or any detail that identifies the person** |
+| `reason_code` | text |  | Why, when partly done or refused: `kept by law`, `identity not verified`, `not held by the office`, `other`. A code, never free text |
 | `handled_by` | text |  | Which staff member decided. Filled when handled. Becomes a link to a staff account in slice 5 |
 
-³ Required, except after the person's removal: the kept requests are then detached (1.4).
+⁴ Required, except after the person's removal: the kept requests are then detached (1.4).
 
 #### `DoNotContact` — student numbers that must never be brought back or contacted again, after a removal
 
@@ -323,7 +342,7 @@ classDiagram
 | `do_not_contact_id` | integer | * | Identifier |
 | `student_number` | text | * | The only thing kept. Unique. Checked at every import |
 | `reason` | text | * | `deceased` (a death was reported), `stop` (a stop request exists) or `removed` (otherwise). One reason per number: `deceased` wins over `stop`, `stop` over `removed` |
-| `since` | date | * | Since when: the date of the removal |
+| `since` | date | * | Since when, for the reason kept: the day the death was reported (`deceased`), the day of the stop request (`stop`), or the day of the removal (`removed`) |
 
 No link to `Person`, `Degree` or `Request`, on purpose. The list means **never contact, for anything**: at removal, any "stop", even partial, becomes total.
 
@@ -336,7 +355,7 @@ No link to `Person`, `Degree` or `Request`, on purpose. The list means **never c
 | `description` | text |  | Free text for the invitation |
 | `starts_at` | date and time | * | When |
 | `place` | text |  | Where. Empty until decided |
-| `audience` | text |  | Who is targeted, in words: "Mathematics graduates 2010–2015". The list itself is computed (part 2) |
+| `audience` | text |  | Who is targeted, in words: "Mathematics graduates 2010–2015". The list itself is computed ([queries.md](queries.md)) |
 
 #### `Registration` — one person registered to one event (association class)
 
@@ -360,6 +379,11 @@ The key is the pair (`person_id`, `field_id`): the same field is not recorded tw
 
 ### 1.4 Removal
 
+**Three words, three different things** ([D-022](../DECISIONS.md#d-022--removal-is-de-identification-plus-a-suppression-list-not-anonymisation-2026-10-12))
+- **Removal:** we delete the information the policy allows us to delete.
+- **Suppression list:** we keep one restricted identifier (the student number), alone, only to recognise the person if they come back in an import, and never contact them.
+- **Anonymisation:** what remains no longer allows anyone to identify the person, directly or indirectly. **Our removal does not reach this level**, and we say so.
+
 When a person asks us to remove their information (and nothing requires us to keep it):
 
 | What | Happens |
@@ -367,56 +391,77 @@ When a person asks us to remove their information (and nothing requires us to ke
 | `Contact`, `Consent`, `Registration`, `PersonExpertise` rows | **Deleted** |
 | `Person`: names, student number, birth date, death information | **Emptied**; `removed_on` receives the date |
 | `Degree.name_at_graduation` | **Emptied**; `Degree.source` keeps only `registrar` or `spreadsheet` |
-| `Person` row (`person_id`), `Degree` rows (program, year) | **Kept**: the totals do not change |
+| `Person` row (`person_id`), `Degree` rows (program, faculty, year) | **Kept**: the totals do not change |
 | `Request` rows | **Kept, but detached** (`person_id` emptied): they prove what was done, by whom and with what outcome, without saying for whom |
-| The student number | **Moved alone into `DoNotContact`**, with the reason (`deceased`, `stop` or `removed`) and the date |
+| The student number | **Moved alone into the suppression list (`DoNotContact`)**, with the reason and the date |
 
-*Why every removal goes into the list* ([D-019](../DECISIONS.md#d-019--removal-and-the-do-not-contact-list-2026-10-10)): with the student number emptied, the next import could not recognise the person; they would come back with their full identity, and their degrees would be counted twice. Keeping the number alone, on a separate list, is the minimum needed to honour the removal. This is common practice, often called a *suppression list*.
+*Why every removal goes into the list* ([D-019](../DECISIONS.md#d-019--removal-and-the-do-not-contact-list-2026-10-10)): with the student number emptied, the next import could not recognise the person; they would come back with their full identity, and their degrees would be counted twice. **This is a policy choice of the office**, not an automatic consequence of removal: the list must be justified, seen only by the staff who run imports, and kept only as long as the policy says (to define).
 
 *Why a separate list, and detached requests?* If the number stayed on the `Person` row, or if a kept request still pointed to the person, the kept degrees could be joined back: student number + program + year identifies the person again.
 
-*When a number from the list comes back* (an import, or the registrar's yearly copy): **a listed number only ever creates anonymous data.** An old degree is ignored. A **new** degree, earned after the removal, is attached to a new `Person` that is **already removed** (no name, no student number, `removed_on` filled): the degree totals stay right, and a removed person has no contacts, so they can never be invited. A number leaves the list only if the person asks.
+*When a listed number comes back* ([D-023](../DECISIONS.md#d-023--a-new-degree-for-a-listed-number-is-ignored-2026-10-12)): old spreadsheets are imported once, and the registrar then sends only new degrees, so anything arriving later is new. **It is ignored**: a listed number never enters again, for anything. A number leaves the list only if the person asks.
 
-*Accepted limits:*
+*Honest limits:*
+- **Not anonymous.** In a very small program, "civil engineering, 2003" can point to one person. The kept degree rows are *de-identified*, not anonymous.
+- A degree earned after the removal is **not counted**. Rare, and accepted.
 - A person without a student number cannot be recognised after removal.
-- A removed person who earns a new degree is counted twice in the total of *people* (the degree total stays right). Rare, and accepted.
-- Dates can still hint at a link (for example, a removal date and a list date on the same day). We accept this small risk in a fictional project; a real one would ask the privacy officer.
-- The archived spreadsheets follow the university's retention rules; removal does not change them.
+- Dates can still hint at a link (a removal date and a list date on the same day). A real project would ask the privacy officer.
+- Removal covers **this database only**. The archived spreadsheets follow the university's retention rules, and copies in other systems (Office 365) are outside the model.
 
 ### 1.5 Left for later, on purpose
 
 ([D-021](../DECISIONS.md#d-021--left-for-later-on-purpose-2026-10-10))
-- **Staging tables (slices 3–4).** Old spreadsheets are first loaded as they are into temporary tables, cleaned, then moved into the model. That is why "M. Tremblay" without a first name does not block anything: he never enters `Person` uncleaned.
+- **Staging tables (slices 3–4).** Old spreadsheets are first loaded as they are into temporary tables, cleaned, checked, then moved into the model. That is why "M. Tremblay" without a first name does not block anything: he never enters `Person` uncleaned.
+- **A safety rule, already decided:** a record whose identity is not confirmed (possible duplicate, or not yet checked against the suppression list) **never enters a mailing list**. Otherwise Robert, imported again under a slightly different name, would come back as a new person without his "stop".
 - **Duplicate decisions and merges (slice 4).** Where a staff member's decision "same person / not the same person" is kept, and how two `Person` rows are merged (moving their contacts, consents and requests).
 - **Quality over time (slice 4).** Question 10 ("better or worse, month after month?") needs past measurements; they will be stored as dated measurements.
-- **Accepted limit:** a program belongs to one faculty, with no history. If two faculties merge, past degrees follow the program to its new faculty.
+- **Invitation history.** Today we compute who *may* be invited; we do not store who *was* invited to a past event. Noted for later.
 
 ---
 
 ## 2. Compute
 
-*To be completed.* First elements already agreed:
-
-- **View `current_consent`:** the current answer for each person and each kind of contact (order: [1.2](#12-the-choices-one-by-one), Consent). Every other query reads this view, never the history table directly.
-- **View "people to invite":** alive, not removed, current consent "yes" for events, and a working email (the one chosen for events, or else the preferred one) — **one row per person**, even with two degrees.
-- **Counting:** people (`Person`) and degrees (`Degree`) are two different totals; the story asks for both.
+Part 2 has its own file: **[queries.md](queries.md)**. It takes each question of the story, explains it with a small example, then gives the SQL and the expected result on a cast of six people.
 
 ---
 
 ## 3. Check
 
-*To be completed.* First rules already agreed:
+**A rule written here is not yet a rule the database enforces.** Each rule below says **how** it will be enforced, and when.
 
-- **No consent means no.** No row for a kind of contact: the person is not contacted (opt-in).
-- **An import never cancels a "no".**
-- **History is never changed.** `Consent` and `Request` rows are only added, never modified (except for a removal, and for filling in the handling of a request). A contact's value is never overwritten: a new address is a new row.
-- **A death closes all contact.** A person with a reported death appears in no list. `deceased_source` is filled if and only if `deceased_reported_on` is filled.
-- **One preferred contact** per person and per kind; never a `bounced` or `obsolete` one.
-- **A consent's contact is an email of the same person.** If it stops working, nothing is sent for that kind of message.
-- **Removal empties everything that identifies.** If `removed_on` is filled, then names, student number, birth date, death information and every `name_at_graduation` are empty, and the person's requests are detached. (Not the other way round: an old entry may have no student number without being removed.) Names are filled for every person not removed. A removed person has no `Contact`, `Consent`, `Registration` or `PersonExpertise` row, and their degrees' `source` is only `registrar` or `spreadsheet`.
-- **A handled request is complete.** `outcome` and `handled_by` are filled if and only if `handled_on` is filled.
-- **Every person has at least one degree.** A plain foreign key cannot enforce it; a check (or the import process) does.
-- **Imports check `DoNotContact`.** A listed number only ever creates anonymous data: old degrees ignored, a new degree attached to an already-removed person.
-- **Imported answers never beat direct ones**; among imported answers only, "no" wins.
-- **The registrar's row wins.** It replaces a spreadsheet row for the same degree, and is never replaced.
-- **Confidentiality:** former names and home addresses are seen only by the staff who need them (roles, slice 5).
+| How | Meaning |
+|---|---|
+| **Constraint** | The database refuses the bad row (`NOT NULL`, `UNIQUE`, `CHECK`, foreign key). The strongest |
+| **Index** | A partial unique index: unique only among some rows (for example, only the preferred ones) |
+| **View** | The rule is written once in a view; every list reads the view |
+| **Trigger** | A small program the database runs on each change, when a constraint cannot look at another table |
+| **Process** | The import or removal procedure applies it, in one transaction |
+| **Test** | A check query whose correct answer is empty, run after each import or removal |
+| **Rights** | Only some roles may see or change it (slice 5) |
+
+| Rule | How | When |
+|---|---|---|
+| No consent means no: a person with no answer for a kind of contact is not contacted | View (`recipient`) | Slice 2 |
+| The current answer follows the three kinds of evidence (D-026) | View (`current_consent`) | Slice 2 |
+| An undocumented "yes" from a list does not count; the person is asked to confirm | View, list of answers to confirm | Slice 2 |
+| `given_on` is filled, except for an imported answer; `documented_source` is filled for an imported answer only | Constraint | Slice 2 |
+| History is never changed: consent and request rows are only added (except removal, and filling in a request's handling) | Rights | Slice 5 |
+| A contact's value is never overwritten: a new address is a new row | Rights, process | Slices 2, 5 |
+| A death closes all contact | View (`active_person`) | Slice 2 |
+| `deceased_source` is filled if and only if `deceased_reported_on` is filled | Constraint | Slice 2 |
+| At most one preferred contact per person and per kind | Index | Slice 2 |
+| A `bounced` or `obsolete` contact is never preferred | Constraint | Slice 2 |
+| A consent's chosen contact belongs to the same person | Constraint (link on two columns) | Slice 2 |
+| …and is an email | Trigger | Slice 2 |
+| The same degree is not stored twice (person, program, year) | Constraint | Slice 2 |
+| The same contact is not stored twice (person, kind, normalised value) | Index | Slice 2 |
+| A handled request is complete: `outcome` and `handled_by` filled if and only if `handled_on` is filled | Constraint | Slice 2 |
+| An access or correction request is in writing (`email` or `letter`) | Constraint | Slice 2 |
+| Every person has at least one degree | Process, test (a plain foreign key cannot enforce it) | Slices 2–3 |
+| Removal empties everything listed in 1.4, and detaches the requests | Process (one transaction), test ([Q9](queries.md#q9--a-removal-done-verified-totals-unchanged)) | Slice 2 |
+| Names are filled for every person not removed | Constraint | Slice 2 |
+| A listed number never enters again | Process | Slice 3 |
+| A record whose identity is not confirmed never enters a mailing list | Process (staging) | Slices 3–4 |
+| The registrar's row replaces a spreadsheet row for the same degree, and is never replaced | Process | Slice 3 |
+| The access report covers every class that points to a person | Test (compare the report with the list of tables that have a `person_id`) | Slice 2 |
+| Former names, home addresses and birth dates are seen only by the staff who need them | Rights | Slice 5 |

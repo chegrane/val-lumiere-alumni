@@ -10,6 +10,8 @@ An educational, open-source project: designing and building the alumni database 
 ## Documents
 
 - [The story](docs/story.md): how we go from a human need to a well-defined project.
+- [The model](docs/model.md): what we store, and how the rules are enforced.
+- [The queries](docs/queries.md): how each question of the story becomes SQL, with small examples.
 
 ## Setup
 

@@ -91,7 +91,7 @@ Under Québec's law, the head of the university (the rector) is responsible for 
 - "Last year someone asked to be deleted. We removed their lines from a few files, and the next report showed fewer graduates for 2010 than the year before. Totals must not change because someone left."
 
 **Her answers:**
-- *What can be removed, then?* "The academic records stay with the registrar. What the alumni office holds — contact information, preferences, event history — can be removed when a person asks and nothing requires us to keep it. Their degrees still count in the totals, without anything that identifies them."
+- *What can be removed, then?* "The academic records stay with the registrar. What the alumni office holds — contact information, preferences, event history — can be removed when a person asks and nothing requires us to keep it. Their degrees still count in the totals, without their name or anything that directly identifies them. We should not call that *anonymous*: in a very small program, a program and a year can still point to one person."
 - *Then they are gone for good?* "Not completely: we keep the minimum, their student number on a do-not-contact list, with the reason and since when. Otherwise they come back with the next spreadsheet or the next copy from the registrar. A person who asks for removal is never contacted again. We also keep a note that the removal was done, and when, without saying for whom."
 
 ### The Director
@@ -160,7 +160,7 @@ From these meetings, we wrote a summary. The Director read it, corrected it and 
 - **The law.** Collect, use, share and keep personal information only as the law allows, and ask for the person's consent wherever it is required (for example, for the newsletter or for assignment offers). Tell a person everything we hold about them, within the legal deadline, and correct what is wrong or incomplete. Examine each removal request against what the law requires us to keep or to destroy.
 - **"Stop" is immediate.** This is the office's own rule: a request to stop contacting someone is respected right away, everywhere. We keep who asked, for what, since when and how, so that it stays respected when the person reappears in an imported spreadsheet.
 - **Confidentiality.** Each person in the office sees only what their work needs. Former names are seen only by the staff who need them.
-- **Removing without breaking history.** When a person asks us to remove their information, the alumni office's information about them goes (contacts, preferences, event history); their degrees still count in the totals, without anything that identifies them. We keep only their student number on a do-not-contact list, so they are never brought back or contacted again, and a note that the removal was done, and when.
+- **Removing without breaking history.** When a person asks us to remove their information, the alumni office's information about them goes (contacts, preferences, event history); their degrees still count in the totals, without their name or anything that directly identifies them. We keep only their student number on a do-not-contact list, so they are never brought back or contacted again, and a note that the removal was done, and when.
 
 *The law is simplified here for a fictional story; this is not legal advice.*
 

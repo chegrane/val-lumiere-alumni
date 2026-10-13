@@ -112,6 +112,7 @@ Newest entries at the bottom.
 - **Rejected:** one free-text "expertise" attribute on `Person` (one value only, and "civil engineering" typed five different ways).
 
 ### D-019 — Removal and the do-not-contact list (2026-10-10)
+*Wording corrected by D-022; the rule for new degrees replaced by D-023.*
 - **First idea:** on removal, empty the names but keep the student number on the `Person` row when the person had said "stop".
 - **Problem:** the kept degrees point to that row: student number + program + year identifies the person again. And a removal erased the death record, so a deceased graduate could come back from an import and be invited.
 - **Choice:** removal empties every identifying attribute (names, student number, birth date, death information, name at graduation) and detaches the kept requests from the person. For **every** removal, the student number alone goes into `DoNotContact` (a *suppression list*), with the reason (`deceased`, `stop` or `removed`) and the date; it is linked to nothing. The list means "never contact, for anything": any stop becomes total at removal. A listed number only ever creates anonymous data: imports ignore its old degrees; a new degree is attached to a new, already-removed person (people counted twice in that rare case; degree totals stay right).
@@ -119,6 +120,7 @@ Newest entries at the bottom.
 - **Accepted limits:** a person without a student number cannot be recognised after removal; dates can still hint at a link; archived spreadsheets follow the university's retention rules.
 
 ### D-020 — The current consent answer, and imports (2026-10-10)
+*Replaced by D-024.*
 - **Problem:** with a date only, a "yes" and a "stop" given the same day are tied; and an old list imported today could hide an earlier "stop".
 - **Choice:** two moments per answer: `given_on` (when the person answered) and `recorded_at` (when we recorded it). One rule, independent of the order of imports: an answer given directly by the person (email, phone, letter) always wins over an imported one; among direct answers, the latest `given_on` wins, then the latest `recorded_at`; with only imported answers, any "no" wins.
 - **Also:** a consent may name an email of the same person; if it stops working, nothing is sent for that kind of message (no fallback to another address).
@@ -128,6 +130,39 @@ Newest entries at the bottom.
 - **Deferred to slices 3–4:** staging tables for raw imports; where duplicate decisions are kept and how two people are merged; dated quality measurements for "better or worse, month after month".
 - **Accepted limit:** a program belongs to one faculty, without history.
 - **Why:** part 1 of the model stores what the story needs every day; these belong to the import and quality work, and will be designed with it.
+
+### D-022 — Removal is de-identification plus a suppression list, not anonymisation (2026-10-12)
+- **Problem (outside review, ChatGPT):** the model said "everything that identifies the person goes", but the student number is kept on the suppression list, and a kept degree (program + year) can point to one person in a small program.
+- **Choice:** keep the degree rows on an emptied `Person`, and the student number alone on the suppression list. Describe it honestly: **removal = de-identification + suppression list**, not anonymisation. State the residual risk for small programs.
+- **Rejected:** deleting the degree rows and keeping only anonymous totals (stronger privacy, but every statistic must add those totals: more complex for this project).
+
+### D-023 — A new degree for a listed number is ignored (2026-10-12)
+- **Fact:** old spreadsheets are imported once; afterwards the registrar sends only new degrees. So a degree arriving for a listed number is new.
+- **Choice:** ignore it. A listed number never enters again, for anything. The degree totals miss this rare case; the limit is written down.
+- **Rejected:** attaching it to a new, already-removed person (exact degree totals, but more logic, and the person counted twice).
+
+### D-024 — Consent: the effective date decides; on the same date, "no" wins (2026-10-12)
+*Its ordering rule is replaced by D-026; the split of `channel` and `entry` stays.*
+- **Problem (outside review, ChatGPT):** the column `channel` mixed *how the person answered* with *how the record entered the database*. An unsubscribe link arrives through Office 365, counted as "import", and lost to an older direct "yes".
+- **Choice:** two separate attributes: how the person answered (email, phone, letter, unsubscribe link…) and how the record entered (typed by staff, imported file, mailing system). Each answer has an **effective date**: the date the person answered, or, for an old list without dates, the date of that list. **The latest effective date wins; on the same date, "no" wins.**
+- **Why:** the result does not depend on the order of imports; an unsubscribe beats an older "yes"; a new "yes" after a "no" is respected.
+- **Rejected:** "direct answers always beat imported ones" (D-020: fails on unsubscribe links); "any 'no' always wins over imports" (an old wrong "no" would block the person until they contact the office).
+
+### D-025 — Faculty at graduation stored on each degree (2026-10-12)
+- **Problem (outside review, ChatGPT):** with only `Program` → `Faculty`, past degrees follow a program that moves to another faculty, and historical statistics change.
+- **Choice:** `Degree` gets the faculty at graduation, as given by the registrar. `Program` keeps its current faculty.
+- **Why it is not duplication:** it is a historical fact, true on the day of graduation, and it may differ from the program's faculty today.
+- **Rejected:** keeping only `Program` → `Faculty` and noting the limit.
+
+### D-026 — Consent: three kinds of evidence (2026-10-12)
+- **Problem (outside review, ChatGPT):** under D-024, a list's date counted as the person's choice. A stale list exported on March 10 still saying "yes" would beat a "stop" given on March 2. And a bare "yes" in an old list does not prove a valid, specific consent.
+- **Choice:**
+  1. **The person's own choice**, with its real date (typed by the staff, unsubscribe link): the latest wins; on the same date, "no" wins.
+  2. **A "no" from a list** blocks contact from the day we receive the list. An import can never reopen contact; only a later choice by the person can.
+  3. **A "yes" from a list** counts only when there is nothing else, **and** only if the list documents a real, specific consent (for example, the newsletter sign-up form). Otherwise the permission is **unknown**: nothing is sent, and the person is asked to confirm.
+  4. Three dates are kept apart: the day of the choice (`given_on`), the date a list represents (`source_list_date`), the day we received or recorded it (`recorded_at`). A file's export date is never taken as the day of a choice.
+- **Why:** correct (an unproven "yes" is not consent), prudent (a list can block, never reopen), and no campaign to ask everyone again: documented lists keep working.
+- **Rejected:** D-024 (a list's date counted as a choice); ignoring every imported "yes" (the office would start with nobody to write to).
 
 ## Open questions
 
