@@ -5,7 +5,7 @@
 
 An educational, open-source project: designing and building the alumni database of a fictional institution, with a strong focus on **data modelling**, **data quality** (cleaning, duplicate detection) and **respect for personal information**.
 
-**About this project.** A personal project by Ibrahim Chegrane, built with help from an AI assistant (Claude) for part of the code and the documents. Every design decision is his, and is recorded with its reason in [DECISIONS.md](DECISIONS.md).
+**About this project.** A personal project by Ibrahim Chegrane, built with help from two AI assistants: **Claude** (design discussions, code, first drafts) and **ChatGPT** (outside review, editing of the texts). Every design decision is his, and is recorded with its reason in [DECISIONS.md](DECISIONS.md).
 
 **Status:** work in progress. The story and the data model are written; the SQL schema comes next ([roadmap](ROADMAP.md)).
 

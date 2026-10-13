@@ -84,6 +84,11 @@ Newest entries at the bottom.
 - **Why:** this is a personal learning project; speed matters, understanding matters more.
 - **Rejected:** Ibrahim writing every file himself (slow, and the thinking is already shared in discussion); accepting drafts without checking (fast, but he could not explain them).
 
+### D-027 — Two AI assistants, with clear roles (2026-10-12)
+- **Choice:** Claude for discussion, structure, model, SQL, code and first drafts; ChatGPT for outside review and for the texts (flow, consistency, clarity, English and French). Ibrahim decides and accepts everything. One ChatGPT pass per milestone; Claude applies reviews with judgment and says when it disagrees.
+- **Why:** the outside reviews found real errors that three internal rounds had missed (a model of the same family shares the same blind spots), and ChatGPT writes very clear prose. Saying who helped is also a matter of honesty: the README now names both.
+- **Rejected:** one assistant only (no outside viewpoint); a ChatGPT review on every change (loops where the two rewrite each other, and the free plan's limits).
+
 ## Model (slice 1)
 
 ### D-014 — A person and their degrees are two classes (2026-10-10)
