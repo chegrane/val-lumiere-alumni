@@ -1,4 +1,4 @@
-# Contexte personnel : jamais dans le dépôt public
+# Personal context: never in the public repository
 private/
 
 # Python
@@ -7,17 +7,17 @@ __pycache__/
 .venv/
 venv/
 
-# Données générées et bases locales
+# Generated data and local databases
 *.db
 *.sqlite
 *.sqlite3
 data/generated/
 
-# Secrets et configuration locale
+# Secrets and local configuration
 .env
 *.local
 
-# Éditeurs et systèmes
+# Editors and operating systems
 .vscode/
 .idea/
 .DS_Store

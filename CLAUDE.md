@@ -44,7 +44,8 @@ An **educational, open-source** project: the alumni database of a **fictional** 
 - **Truth:** never describe as done what is not done. The README says plainly that this is a personal project built with help from an AI assistant for part of the code.
 - **Check the time** with `TZ=America/Montreal date` before dating anything.
 - **One commit per working session**, even small. Every choice goes into `DECISIONS.md`: the choice, the reason, the rejected option.
-- **Work sessions are 1 h 30** (project block: 13:00–14:30). He gets excited and forgets the time: help him stop at the end of the block.
+- **Work sessions are 1 h 30** (project block: 13:00–14:30). Remind him **once** at the end of the block; then follow his choice. He often chooses to keep working.
+- **Reviews.** After each milestone, run the strict reviewer agent (`.claude/agents/model-reviewer.md`): at most 2 rounds, a 3rd focused one only if needed. After that, prefer tests over more text. At major milestones, Ibrahim asks an outside reviewer (ChatGPT) for a different viewpoint: it catches what a model of the same family misses.
 - **Security:** never write passwords, tokens or personal identifiers in the repo.
 - **Push:** Ibrahim does `git push` himself (Claude pushes only when he asks). **Claude reminds him to commit and push** at the end of each working day, so no work is lost, and whenever a milestone (a logical step) is finished.
 

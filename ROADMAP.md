@@ -12,8 +12,8 @@ Day-to-day work (current objective, bugs, ideas) is in [TASKS_TODO.md](TASKS_TOD
 | Slice | Content | Status |
 |---|---|---|
 | Environment | PostgreSQL in Ubuntu (WSL2), Git, GitHub, [setup tutorial](docs/setup.md) | ✅ |
-| 0. Framing | The story, the needs, what is out of scope, a glossary | 🔄 |
-| 1. Model | Entities, class diagram, relational schema, a reason for every table and key | ⏳ |
+| 0. Framing | The story, the needs, what is out of scope, a glossary | ✅ (glossary to do) |
+| 1. Model | Entities, class diagram, data dictionary, queries, a reason for every table and key | 🔄 (final read) |
 | 2. Schema | `sql/schema.sql`: keys, constraints, indexes, views | ⏳ |
 | 3. Dirty data | A generator of synthetic data with deliberate defects (duplicates, bad formats, invalid emails) | ⏳ |
 | 4. Data quality | Cleaning, duplicate detection (approximate string matching), a quality report with indicators | ⏳ |
