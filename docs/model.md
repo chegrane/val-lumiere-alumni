@@ -69,8 +69,6 @@ classDiagram
     consent_id
     granted
     given_on
-    source_list_date
-    documented_source
     channel
     entry
     recorded_at
@@ -105,6 +103,16 @@ classDiagram
     attended
   }
   class PersonExpertise
+  class SourceList {
+    source_list_id
+    name
+    received_at
+    represents_on
+    documented
+    evidence_ref
+    evidence_checked_on
+    evidence_checked_by
+  }
 
   Faculty "1" -- "*" Program
   Faculty "1" -- "*" Degree : at graduation
@@ -116,6 +124,8 @@ classDiagram
   ContactPurpose "1" -- "*" Consent
   Contact "0..1" -- "*" Consent : send to
   Request "0..1" -- "*" Consent : caused
+  SourceList "0..1" -- "*" Consent : imported from
+  ContactPurpose "1" -- "*" SourceList
   Person "0..1" -- "*" Request
   Person "1" -- "*" Registration
   Event "1" -- "*" Registration
@@ -140,11 +150,13 @@ classDiagram
 | `Event` | one event: reunion, department event… | The alumni office |
 | `Registration` | one person registered to one event, and whether they came | The alumni office |
 | `PersonExpertise` | one field in which one person has expertise | The alumni office |
+| `SourceList` | one imported consent list, for one kind of contact: when we received it, and whether it proves consent | The alumni office, at import |
 
-**Eight core classes, five supporting ones**
+**Eight core classes, six supporting ones**
 - **The core (8):** `Person`, `Degree`, `Program`, `Contact`, `Consent`, `Request`, `DoNotContact`, `Event`. They hold the information the story is about.
 - **Reference lists (3):** `Faculty`, `Field`, `ContactPurpose`. Short lists of allowed values, written once and shared, so that the same thing is never typed two different ways.
 - **Association classes (2):** `Registration`, `PersonExpertise`. They exist only to link two classes in a many-to-many relationship, and to hold what belongs to the link itself (for example, whether the person came to the event).
+- **Provenance (1):** `SourceList`. It describes where imported answers come from, so that this description is written once per list, not once per answer.
 
 ### 1.2 The choices, one by one
 
@@ -180,7 +192,11 @@ classDiagram
 - *Problem:* the old answer is overwritten. We cannot say since when, or how, the person answered, nor prove it.
 - *Solution:* one row per answer: person, kind of contact, yes or no, when the person answered, how they answered, how the record entered our database, and who recorded it. A new answer is a **new row**; old rows are never changed.
 - **The table stores the whole history; a view shows the current state** ([queries.md](queries.md)).
-- *Two different questions, two attributes* ([D-024](../DECISIONS.md#d-024--consent-the-effective-date-decides-on-the-same-date-no-wins-2026-10-12)). **How did the person answer?** (`channel`: email, phone, letter, unsubscribe link, unknown.) **How did the record enter our database?** (`entry`: typed by the staff, imported file, mailing system.) A first version mixed them in one column, and an unsubscribe link (which arrives through Office 365) lost to an older "yes".
+- *Two different questions, two attributes* ([D-024](../DECISIONS.md#d-024--consent-the-effective-date-decides-on-the-same-date-no-wins-2026-10-12)). **How did the person answer?** (`channel`: email, phone, letter, unsubscribe link, unknown.) **How did the record enter our database?** (`entry`: typed by the staff; `mailing system`, for individual dated actions such as Karim's unsubscribe; `file import`, for a **snapshot** of a list.) A first version mixed them in one column, and an unsubscribe link (which arrives through Office 365) lost to an older "yes".
+- *Where does an imported answer come from?* ([D-028](../DECISIONS.md#d-028--sourcelist-the-description-of-an-imported-list-belongs-to-the-list-2026-10-14))
+  - *First idea:* on each imported answer, the date of the list and whether it proves consent.
+  - *Problem:* 5,000 answers from the same list repeat the same date and the same "proves consent: yes". If proof is found six months later, 5,000 rows must change: an update anomaly, like Karim's name copied twice.
+  - *Solution:* a small class `SourceList`, one row per imported list, for **one** kind of contact (a newsletter sign-up form proves consent to the newsletter, not to assignment offers). It holds the day we received the list, the date its information represents, whether it proves consent, where the proof is, and when and by whom the proof was checked. Each imported answer points to its list. **A snapshot never carries a choice date**: the list says what was true, not when the person chose.
 - *Which answer is the current one?* ([D-026](../DECISIONS.md#d-026--consent-three-kinds-of-evidence-2026-10-12)) Three kinds of evidence, three rules:
   1. **The person's own choice**, with its real date: the latest wins; on the same date, "no" wins. Karim's unsubscribe (March) beats his "yes" (January).
   2. **A "no" from a list** blocks contact from the day we receive the list. Only a **later** choice by the person can lift it.
@@ -243,7 +259,7 @@ classDiagram
 | `name` | text | * | "Bachelor of Civil Engineering" |
 | `level` | text | * | `bachelor`, `master`, `doctorate`, `certificate`. Lets us count by level |
 | `faculty_id` | → `Faculty` | * | The faculty that offers it **today** |
-| `field_id` | → `Field` | * | Its field: an assignment offer in civil engineering reaches its graduates |
+| `field_id` | → `Field` | * | Its field: an assignment offer in civil engineering reaches its graduates. **Assumption:** a program's field does not change (unlike its faculty, D-025) |
 
 #### `Person` — one graduate, once, whatever the number of degrees
 
@@ -306,18 +322,33 @@ classDiagram
 | `person_id` | → `Person` | * | Who answered |
 | `purpose_id` | → `ContactPurpose` | * | For what |
 | `granted` | boolean | * | Yes or no |
-| `given_on` | date | * ² | The day the person **made the choice**: story question 6, and the proof the law asks for |
-| `source_list_date` | date |  | For an imported list: the date the list's information represents, if known. **Never** the export date |
-| `documented_source` | boolean | ³ | For an imported "yes": does the list document a real, specific consent (for example, the newsletter sign-up form)? If not, the "yes" does not count |
+| `given_on` | date | ² | The day the person **made the choice**: story question 6, and the proof the law asks for |
 | `channel` | text | * | **How the person answered:** `email`, `phone`, `letter`, `unsubscribe link`, `unknown` |
-| `entry` | text | * | **How the record entered our database:** `staff` (typed), `file import`, `mailing system` (Office 365) |
-| `recorded_at` | date and time | * | When we received or recorded it. For a list's "no", contact is blocked from this day |
+| `entry` | text | * | **How the record entered our database:** `staff` (typed), `mailing system` (an individual dated action from Office 365), `file import` (a snapshot of a list) |
+| `source_list_id` | → `SourceList` | ³ | For a `file import`: the list it comes from. Its kind of contact must be this answer's kind (the link checks `source_list_id` and `purpose_id` together) |
+| `recorded_at` | date and time | * | When we recorded it. Last tie-breaker between two answers |
 | `recorded_by` | text | * | Which staff member, or which import, entered it. Becomes a link to a staff account in slice 5 |
 | `contact_id` | → `Contact` |  | Where to send this kind of message. Must be an email of the same person (the link checks `contact_id` and `person_id` together). Empty = the preferred email. Not working = not sent |
 | `request_id` | → `Request` |  | The request that caused this answer, if any ("stop everything") |
 
-² Required, except for an answer from an imported list (`entry` = `file import`), where the day of the choice is usually unknown.
-³ Required for an imported answer, empty otherwise.
+² Filled for the person's own choices (`staff`, `mailing system`); **always empty** for a `file import`: a snapshot never carries a choice date.
+³ Filled if and only if `entry` = `file import`.
+
+#### `SourceList` — one imported consent list, for one kind of contact
+
+| Attribute | Type | Req. | Purpose |
+|---|---|---|---|
+| `source_list_id` | integer | * | Identifier |
+| `name` | text | * | The file or list: "Newsletter sign-ups 2019" |
+| `purpose_id` | → `ContactPurpose` | * | The one kind of contact this list is about. A file covering several kinds is split into several lists during staging |
+| `received_at` | date and time | * | When the office **received** the list. A "no" from this list blocks contact from this day |
+| `represents_on` | date |  | The date the list's information represents, if known. **Never** taken as the day of anyone's choice; never the export date |
+| `documented` | boolean | * | Does the list prove a real, specific consent for its kind of contact? Default: no. A "yes" from an undocumented list does not count |
+| `evidence_ref` | text | ⁵ | Where the proof is: "Sign-up forms 2019, archive box 12" |
+| `evidence_checked_on` | date | ⁵ | When the proof was checked. Proof found later is recorded here, without changing any answer |
+| `evidence_checked_by` | text | ⁵ | Who checked it |
+
+⁵ Filled if and only if `documented` is yes.
 
 #### `Request` — one request made by a person
 
@@ -327,7 +358,7 @@ classDiagram
 | `person_id` | → `Person` | * ⁴ | Who asked |
 | `type` | text | * | `stop`, `remove`, `access`, `correction` |
 | `received_on` | date | * | Date received: the legal deadline starts here |
-| `channel` | text | * | `email`, `phone`, `letter`. An `access` or `correction` request must be **in writing** (`email` or `letter`); a phone call is noted as a first contact |
+| `channel` | text | * | `email`, `phone`, `letter`. An `access` or `correction` request must be **in writing** (`email` or `letter`). A first phone call about it is handled outside this model, until the written request arrives |
 | `handled_on` | date |  | Date it was completed. **Empty = still open**: one query lists every late request |
 | `outcome` | text |  | `done`, `partly done`, `refused`. Filled when handled |
 | `reason_code` | text |  | Why, when partly done or refused: `kept by law`, `identity not verified`, `not held by the office`, `other`. A code, never free text |
@@ -444,7 +475,9 @@ Part 2 has its own file: **[queries.md](queries.md)**. It takes each question of
 | No consent means no: a person with no answer for a kind of contact is not contacted | View (`recipient`) | Slice 2 |
 | The current answer follows the three kinds of evidence (D-026) | View (`current_consent`) | Slice 2 |
 | An undocumented "yes" from a list does not count; the person is asked to confirm | View, list of answers to confirm | Slice 2 |
-| `given_on` is filled, except for an imported answer; `documented_source` is filled for an imported answer only | Constraint | Slice 2 |
+| An imported answer points to its list, and only an imported one; it never carries a `given_on`; the person's own choices always do | Constraint | Slice 2 |
+| An imported answer's kind of contact is its list's kind | Constraint (link on two columns) | Slice 2 |
+| A documented list has its proof reference, check date and checker | Constraint | Slice 2 |
 | History is never changed: consent and request rows are only added (except removal, and filling in a request's handling) | Rights | Slice 5 |
 | A contact's value is never overwritten: a new address is a new row | Rights, process | Slices 2, 5 |
 | A death closes all contact | View (`active_person`) | Slice 2 |

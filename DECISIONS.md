@@ -165,9 +165,15 @@ Newest entries at the bottom.
   1. **The person's own choice**, with its real date (typed by the staff, unsubscribe link): the latest wins; on the same date, "no" wins.
   2. **A "no" from a list** blocks contact from the day we receive the list. An import can never reopen contact; only a later choice by the person can.
   3. **A "yes" from a list** counts only when there is nothing else, **and** only if the list documents a real, specific consent (for example, the newsletter sign-up form). Otherwise the permission is **unknown**: nothing is sent, and the person is asked to confirm.
-  4. Three dates are kept apart: the day of the choice (`given_on`), the date a list represents (`source_list_date`), the day we received or recorded it (`recorded_at`). A file's export date is never taken as the day of a choice.
+  4. Three dates are kept apart: the day of the choice (`Consent.given_on`), the date a list represents and the day we received it (both on `SourceList`, D-028). A file's export date is never taken as the day of a choice.
 - **Why:** correct (an unproven "yes" is not consent), prudent (a list can block, never reopen), and no campaign to ask everyone again: documented lists keep working.
 - **Rejected:** D-024 (a list's date counted as a choice); ignoring every imported "yes" (the office would start with nobody to write to).
+
+### D-028 — SourceList: the description of an imported list belongs to the list (2026-10-14)
+- **Problem (outside review, ChatGPT):** where is the proof behind a "documented" list, and what if proof is found later? Underneath: the list's date and its "documented" flag were copied onto every answer from that list. 5,000 answers, 5,000 copies: an update anomaly.
+- **Choice:** a class `SourceList`, one row per imported list and per kind of contact: when it was received, the date it represents, whether it proves consent, where the proof is, when and by whom it was checked. Each imported answer points to its list. A list snapshot never carries a choice date (`given_on` empty).
+- **Why:** each fact stored once (normalisation); proof found later is recorded on one row, with its date and checker, without changing any answer; evidence is specific to one kind of contact (a newsletter form does not prove consent to assignment offers).
+- **Rejected:** a proof reference on each consent row (the same duplication); a full history of every change of evidence status (not needed for this version).
 
 ## Open questions
 

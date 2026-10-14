@@ -50,7 +50,7 @@ In the queries below, four small building blocks carry these rules, so that no l
 |---|---|
 | `active_person` | Is the person alive and not removed? |
 | `sendable_email` | Which of their emails can we try? (**can**) |
-| `current_consent` | What is their answer today, for each kind of message: yes, no, or unknown? (**may**) |
+| `current_consent` | What is their usable answer today, for each kind of message, if they have one? (**may**) |
 | `recipient` | Who receives what, at which address? (**can and may**) |
 
 ---
@@ -62,7 +62,7 @@ Six people, used in every example. In slice 2, they become the test data.
 | Person | Degrees (faculty at graduation, field, year) | Emails | Consent history |
 |---|---|---|---|
 | **Léa** | Science, Computer science, 2024 | personal: valid, preferred · university: obsolete | newsletter yes, events yes |
-| **Robert** | Administration, Management, 1995 | personal: valid, preferred | 2019 newsletter sign-up list (imported, documented): yes · 2024-05-10, by phone: **no** to everything |
+| **Robert** | Administration, Management, 1995 | personal: valid, preferred | "Newsletter sign-ups 2019" (an imported list, documented by the sign-up forms): yes · 2024-05-10, by phone: **no** to everything |
 | **Sophie** | Education, Education, 2009 | personal: **bounced** | newsletter yes, events yes |
 | **Karim** | Science, Mathematics, 1998 · Engineering, Civil engineering, 2012 | personal: **unknown** (never checked), preferred | events yes · newsletter: yes on 2026-01-15, then **unsubscribe link** on 2026-03-02 |
 | **Nadia** | Engineering, Civil engineering, 2003 · expertise: Civil engineering | work: valid, preferred | offers yes |
@@ -76,43 +76,48 @@ Six people, used in every example. In slice 2, they become the test data.
 
 ### `current_consent` — what is the person's answer today?
 
-**The question.** For each person and each kind of message (newsletter, events, offers): yes, no, or unknown, today?
+**The question.** For each person and each kind of message (newsletter, events, offers): do we have a **usable** answer today, and is it yes or no?
 
 **Small examples.**
-- Karim said "yes" to the newsletter on January 15, 2026. On March 2, he clicked the unsubscribe link at the bottom of a newsletter; Office 365 sent us that refusal. His answer today: **no**.
-- Robert is in the 2019 newsletter sign-up list with "yes". On May 10, 2024, he called to say "stop". His answer today: **no**.
-- Imagine an old mailing system that never recorded Robert's stop, and exports a list on March 10 that still says "yes". That list must **not** make him contactable again.
+- Karim said "yes" to the newsletter on January 15, 2026. On March 2, he clicked the unsubscribe link at the bottom of a newsletter; Office 365 sent us that action, with its date. His answer today: **no**.
+- Robert is in the imported list "Newsletter sign-ups 2019" with "yes". On May 10, 2024, he called to say "stop". His answer today: **no**.
+- Imagine an old mailing system that never recorded Robert's stop, and sends us a list on March 10 that still says "yes". That list must **not** make him contactable again.
 - Imagine a 1995 reunion spreadsheet with a column "OK to contact: yes". Nobody knows what people were told, or for what. That "yes" proves nothing.
+
+**Where answers come from.** An answer either is **the person's own choice**, with its real date (typed by the staff, or an individual action such as an unsubscribe click), or comes from an **imported list**: a snapshot saying what was true, not when anyone chose. Each imported answer points to its list (`SourceList`, [model.md](model.md)), which records when we received it and whether it proves consent for its kind of message.
 
 **The rule** ([D-026](../DECISIONS.md#d-026--consent-three-kinds-of-evidence-2026-10-12)). Not all answers are equally strong. There are three kinds of evidence:
 
 | Kind of evidence | Counts… |
 |---|---|
-| **The person's own choice**, with its real date (typed by the staff, unsubscribe link) | from the day of the choice |
-| **A "no" from a list** | from the day we received the list: it blocks, until the person chooses again later |
-| **A "yes" from a list** | only when there is nothing else, and only if the list documents a real consent (the newsletter sign-up form does; the reunion spreadsheet does not) |
+| **The person's own choice**, with its real date | from the day of the choice |
+| **A "no" from a list** | from the day we **received** the list: it blocks, until the person chooses again later |
+| **A "yes" from a list** | only when there is nothing else, and only if the list proves consent for that kind of message (the newsletter sign-up forms do; the reunion spreadsheet does not) |
 
 Then: **the latest wins, and on the same day, "no" wins.** In one sentence: *an old "yes" can never cancel a "no", and a "yes" we cannot justify is not enough to send.*
 
-A "yes" from an undocumented list is set aside: for that kind of message, the person's answer is **unknown**. Nothing is sent, and the person appears in the list of answers to confirm (list E).
+**No row is not "no".** The view returns the **usable** answer, when one exists. A person with no row has no usable answer: either they were never asked (Gérard), or their only "yes" comes from a list that proves nothing. Either way, nothing is sent. List E finds the second case, so the office can ask them.
 
 **The SQL.** Each answer receives a **sort date** that expresses the rule; then we keep the first answer of each person and kind.
 
 ```sql
 CREATE VIEW current_consent AS
 SELECT DISTINCT ON (person_id, purpose_id)
-       person_id, purpose_id, granted, counts_from, channel, entry, contact_id
+       person_id, purpose_id, granted, counts_from, channel, entry, source_list_id, contact_id
 FROM (
     SELECT c.*,
            CASE
-             WHEN c.given_on IS NOT NULL THEN c.given_on          -- the person's own choice: its real date
-             WHEN NOT c.granted          THEN c.recorded_at::date -- a list's "no": from the day we received it
-             ELSE '-infinity'::date                               -- a list's "yes": only if there is nothing else
+             WHEN c.entry = 'file import' AND NOT c.granted
+                  THEN sl.received_at::date      -- a list's "no": from the day we received the list
+             WHEN c.entry = 'file import'
+                  THEN '-infinity'::date         -- a list's "yes": only if there is nothing else
+             ELSE c.given_on                     -- the person's own choice: its real date
            END AS counts_from
     FROM consent c
+    LEFT JOIN source_list sl ON sl.source_list_id = c.source_list_id
     WHERE NOT (c.entry = 'file import'
                AND c.granted
-               AND NOT c.documented_source)                       -- an undocumented "yes" is set aside
+               AND NOT sl.documented)            -- a "yes" from a list that proves nothing is set aside
 ) AS c
 ORDER BY person_id, purpose_id,
          counts_from DESC,     -- the latest first
@@ -121,11 +126,13 @@ ORDER BY person_id, purpose_id,
          consent_id DESC;      -- and a final tie-breaker, so the choice never changes
 ```
 
-- The inner query gives each answer its `counts_from` date, following the table above. `'-infinity'` is a PostgreSQL date older than every other date: a list's "yes" can only win if nothing else exists. That is how the rule is implemented, not the rule itself.
-- The `WHERE` sets aside the undocumented "yes" answers.
+- The inner query gives each answer its `counts_from` date. **It asks "does this answer come from a list?" first**: a list's answer never uses a choice date (and the model keeps `given_on` empty for list answers anyway). A first version asked about the date first, and a dated list "yes" could beat a "no": that was a bug.
+- `LEFT JOIN source_list` brings the list's reception date and its proof status; answers that are not from a list simply have no list.
+- `'-infinity'` is a PostgreSQL date older than every other date: a list's "yes" can only win if nothing else exists. It is how the rule is implemented, not the rule itself.
+- The `WHERE` sets aside the "yes" answers from lists that prove nothing.
 - `ORDER BY` puts the answer that should win first; `DISTINCT ON (person_id, purpose_id)` keeps only that one, for each person and kind of message.
 
-**The result.** Robert: no, no, no. Karim: newsletter **no**, events yes. Gérard: **no row at all**: "never asked". Like an unknown answer, that means no message.
+**The result.** Robert: no, no, no. Karim: newsletter **no**, events yes. Gérard: **no row**: no usable answer, so no message.
 
 ### `active_person` — alive and not removed
 
@@ -303,6 +310,7 @@ WHERE cp.name = 'events'
 ```
 
 - `EXISTS (…)` answers yes or no for each person, so each person appears once, however many degrees match.
+- This uses the program's field. The model assumes a program's field does not change (unlike its faculty, which is stored at graduation).
 - The field and the years are written in the query. A view cannot take parameters; if this kind of list is prepared often, a SQL function can come later.
 
 **The result.** Karim (Mathematics, 1998).
@@ -371,20 +379,31 @@ All of the person's contacts, the most recently checked first; never-checked one
 
 ### Q6 — Who asked not to be contacted, for what, and since when?
 
-**A small example.** Robert said "no" to everything on May 10, 2024, by phone. Karim said "no" to the newsletter on March 2, 2026, with an unsubscribe link. Gérard was **never asked**: he did not refuse anything.
+**A small example.** Robert said "no" to everything on May 10, 2024, by phone. Karim said "no" to the newsletter on March 2, 2026, with an unsubscribe link. Gérard was **never asked**: he did not refuse anything. And imagine an imported list where someone is marked "no": we block contact from the day we received it, but the list does not tell us when, or even whether, that person asked.
 
-**The rule.** A refusal is an explicit "no", not the absence of an answer. Two results, clearly labelled:
-- **Current explicit refusals:** active people whose current answer is "no", for one or more kinds of message.
-- **Suppression list entries:** student numbers kept after a removal. Not all of them are refusals: the reason may be a stop request, a reported death, or a removal.
+**The rule.** The story asks *who asked*. Only the person's own "no" answers that. Three results, clearly labelled:
+- **Refusals expressed by the person:** a current "no" that is their own choice (typed by the staff, or an action such as an unsubscribe click). This answers the story's question.
+- **Blocks from imported lists:** a current "no" that comes from a list. We respect it, but it is a protective block, not proof of when or how the person refused.
+- **Suppression list entries:** student numbers kept after a removal. Not all of them are refusals either: the reason may be a stop request, a reported death, or a removal.
 
 ```sql
--- Current explicit refusals
+-- Refusals expressed by the person
 SELECT p.person_id, p.last_name, cp.name AS purpose, cc.counts_from, cc.channel
 FROM current_consent cc
 JOIN active_person   p  ON p.person_id   = cc.person_id
 JOIN contact_purpose cp ON cp.purpose_id = cc.purpose_id
 WHERE NOT cc.granted
+  AND cc.entry <> 'file import'
 ORDER BY cc.counts_from;
+
+-- Blocks from imported lists
+SELECT p.person_id, p.last_name, cp.name AS purpose, sl.name AS list, sl.received_at
+FROM current_consent cc
+JOIN active_person   p  ON p.person_id      = cc.person_id
+JOIN contact_purpose cp ON cp.purpose_id    = cc.purpose_id
+JOIN source_list     sl ON sl.source_list_id = cc.source_list_id
+WHERE NOT cc.granted
+ORDER BY sl.received_at;
 
 -- Suppression list entries
 SELECT student_number, reason, since
@@ -392,7 +411,7 @@ FROM do_not_contact
 ORDER BY since;
 ```
 
-**The result.** Robert (newsletter, events, offers; 2024-05-10; phone) and Karim (newsletter; 2026-03-02; unsubscribe link). Not Gérard. On the suppression list, `since` is the date of the reason kept: the death report, the stop request, or the removal.
+**The result.** Refusals expressed by the person: Robert (newsletter, events, offers; 2024-05-10; phone) and Karim (newsletter; 2026-03-02; unsubscribe link). No blocks from lists in the cast. Not Gérard. On the suppression list, `since` is the date of the reason kept: the death report, the stop request, or the removal.
 
 ### Q8 — "What do you know about me?"
 
@@ -407,11 +426,13 @@ SELECT * FROM person            WHERE person_id = 48213;
 SELECT * FROM degree            WHERE person_id = 48213;
 SELECT * FROM contact           WHERE person_id = 48213;
 SELECT * FROM consent           WHERE person_id = 48213
-         ORDER BY COALESCE(given_on, source_list_date, recorded_at::date);
+         ORDER BY COALESCE(given_on, recorded_at::date);
 SELECT * FROM request           WHERE person_id = 48213 ORDER BY received_on;
 SELECT * FROM registration      WHERE person_id = 48213;
 SELECT * FROM person_expertise  WHERE person_id = 48213;
 ```
+
+For imported answers, the report also names the list each one came from (`source_list`), so the person can see where we got it.
 
 **Limits.** These queries gather the raw data. A real answer to the person is a readable document: the application must assemble it, and replace identifiers by names (the program's name, not `program_id = 12`). It covers **this database only**; other systems (Office 365, archives) need their own search. A test in part 3 checks that every class with a `person_id` is in this list, so that a class added later is not forgotten.
 
@@ -481,22 +502,23 @@ ORDER BY received_on;
 
 ### List E — Answers to confirm
 
-**The rule.** People whose only "yes" for a kind of message comes from an undocumented list: their answer is unknown. The office asks them to confirm, once, for that kind of message.
+**The rule.** People whose only "yes" for a kind of message comes from a list that proves nothing: they have no usable answer. The office asks them to confirm, once, for that kind of message.
 
 ```sql
-SELECT DISTINCT c.person_id, cp.name AS purpose
+SELECT DISTINCT c.person_id, cp.name AS purpose, sl.name AS list
 FROM consent c
-JOIN active_person   p  ON p.person_id   = c.person_id
-JOIN contact_purpose cp ON cp.purpose_id = c.purpose_id
-WHERE c.entry = 'file import'
-  AND c.granted
-  AND NOT c.documented_source
+JOIN active_person   p  ON p.person_id      = c.person_id
+JOIN contact_purpose cp ON cp.purpose_id    = c.purpose_id
+JOIN source_list     sl ON sl.source_list_id = c.source_list_id
+WHERE c.granted
+  AND NOT sl.documented
   AND NOT EXISTS (SELECT 1 FROM current_consent cc
                   WHERE cc.person_id  = c.person_id
                     AND cc.purpose_id = c.purpose_id);
 ```
 
-`NOT EXISTS` keeps only the people with no other answer for that kind: if they already said yes or no themselves, there is nothing to confirm.
+- `NOT EXISTS` keeps only the people with no usable answer for that kind: if they already said yes or no themselves, or a list blocks them, there is nothing to ask.
+- **Proof found later.** If the office later finds the forms behind a list, it records the proof **on the list** (where it is, when and by whom it was checked). The list becomes documented; its "yes" answers count from then on, and they leave list E. No answer is rewritten.
 
 ---
 
@@ -506,19 +528,22 @@ Each case is dated, with its expected result. In slice 2, each becomes a test.
 
 | # | Case | Expected |
 |---|---|---|
-| 1 | Robert: 2019 newsletter sign-up list (documented) says yes; 2024-05-10 by phone: no | Current newsletter answer: **no** |
+| 1 | Robert: list "Newsletter sign-ups 2019" (documented) says yes; 2024-05-10 by phone: no | Current newsletter answer: **no** |
 | 2 | Karim: 2026-01-15 yes to the newsletter; 2026-03-02 unsubscribe link (through Office 365) | **No**; not in list A |
-| 3 | A person says "stop" on 2026-03-02; an old mailing system exports a list on 2026-03-10 that still says "yes" | **No**: a list's "yes" never cancels a "no" |
-| 4 | An undated list says "no" (received 2026-04-01); the person had said "yes" directly in 2025 | **No**, from 2026-04-01 |
+| 3 | A person says "stop" on 2026-03-02; an old system's list, received 2026-03-10, still says "yes" | **No**: a list's "yes" never cancels a "no" |
+| 4 | A list says "no", received 2026-04-01; the person had said "yes" directly in 2025 | **No**, from 2026-04-01 |
 | 5 | Same person, then on 2026-06-01 they write: "yes, I want the newsletter again" | **Yes**: a later choice by the person lifts the block |
-| 6 | Only a "yes" from the 1995 reunion spreadsheet (undocumented) | **Unknown**: not sent; in list E |
-| 7 | Only a "yes" from a documented sign-up list | **Yes** |
-| 8 | A "yes" and a "no" from the person, same day | **No** |
-| 9 | Karim's email is `unknown` | Potentially reachable, no valid email; still invited to the reunion |
-| 10 | A staging row "M. Tremblay, 1995", identity not confirmed | In **no** list; never in `person` until confirmed |
-| 11 | Paul (a separate scenario) is removed in 2025; in 2026 the registrar sends a new degree with his student number | The degree is **ignored**; the degree total misses it (accepted limit) |
-| 12 | After Paul's removal | Q9's check query is **empty**; Q1's degree totals are unchanged |
-| 13 | An access request received by phone | Refused by the database: an access request must be in writing |
+| 6 | Only a "yes" from the 1995 reunion spreadsheet (undocumented) | **No row** (no usable answer): not sent; in list E |
+| 7 | Same as 6, then the office finds the forms and documents the list | **Yes**; out of list E; no consent row changed |
+| 8 | Only a "yes" from a documented sign-up list | **Yes** |
+| 9 | A documented newsletter list, used for assignment offers | **Refused by the database**: a list is about one kind of contact only |
+| 10 | An answer from a list that carries a choice date | **Refused by the database**: a list snapshot never carries a choice date |
+| 11 | A "yes" and a "no" from the person, same day | **No** |
+| 12 | Karim's email is `unknown` | Potentially reachable, no valid email; still invited to the reunion |
+| 13 | A staging row "M. Tremblay, 1995", identity not confirmed | In **no** list; never in `person` until confirmed |
+| 14 | Paul (a separate scenario) is removed in 2025; in 2026 the registrar sends a new degree with his student number | The degree is **ignored**; the degree total misses it (accepted limit) |
+| 15 | After Paul's removal | Q9's check query is **empty**; Q1's degree totals are unchanged |
+| 16 | An access request received by phone | **Refused by the database**: an access request must be in writing |
 
 ---
 

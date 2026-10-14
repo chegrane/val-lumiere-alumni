@@ -27,7 +27,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 
 ## Inbox
 
-- 2026-10-10 — Quick cold check at the start of the next model session, **big lines only** (details stay in the files): why a person and their degrees are separate; why an internal key and not the student number; why history in the table and the current state in a view; why "stop" and "remove" are two different requests
+- 2026-10-14 — New edge case found by Ibrahim: a removed person who comes back and registers again cannot be reconnected to their anonymous row, so their old degree may be counted twice. Options: accept as a written limit (proposed for now), or pseudonymisation with a key kept by the privacy officer only. To decide
 
 ## Next
 
@@ -35,7 +35,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 - [ ] `sql/schema.sql` from the model
 - [ ] Decide the sort order for French names (`C.UTF-8` or a French–Canada collation)
 - [ ] `Contact`: add UNIQUE (`contact_id`, `person_id`) for the two-column link from `Consent`; deletion of a contact blocked (`ON DELETE RESTRICT`), except at removal; a returning old address reactivates its `obsolete` row
-- [ ] Write SQL tests from the cast and the 13 edge cases of `docs/queries.md`
+- [ ] Write SQL tests from the cast and the 16 edge cases of `docs/queries.md`
 
 **Slice 3 — Dirty data**
 - [ ] Python virtual environment; install Faker, pandas, psycopg 3
@@ -49,9 +49,13 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 
 **Before going public**
 - [ ] Check the legal statements in `docs/story.md` (access, correction, removal, responsibility, deadlines) against the Access Act on LégisQuébec
-- [ ] Confirm the licence (MIT proposed) and add `LICENSE`
+- [ ] Licences: decide MIT for the code and **CC BY 4.0 for the texts** (story, model, queries, tutorial: anyone who reuses them must credit Ibrahim by name); add `LICENSE` (and `LICENSE-docs` if CC BY)
+- [ ] Name the skill: **requirements analysis** (README and the story's subtitle)
 - [ ] `README.fr.md`
 - [ ] Reread everything; make the repository public
+
+**After slice 2 — make it a course**
+- [ ] "Try it first" box before each question of `docs/queries.md` (and the key choices of `docs/model.md`): the question, a hint about which tables to look at, the trap to watch for. The reader thinks first, then reads our answer. Text work: draft by Claude, editing by ChatGPT
 
 ## Later
 
