@@ -36,6 +36,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 - [ ] Decide the sort order for French names (`C.UTF-8` or a French–Canada collation)
 - [ ] `Contact`: add UNIQUE (`contact_id`, `person_id`) for the two-column link from `Consent`; deletion of a contact blocked (`ON DELETE RESTRICT`), except at removal; a returning old address reactivates its `obsolete` row
 - [ ] Write SQL tests from the cast and the 16 edge cases of `docs/queries.md`
+- [ ] Write the schema's negative tests: each constraint and trigger refuses its bad row (18 cases tried by hand on 2026-10-14), **including the NULL trap**: an open request with a reason must be refused; a refused request without a reason too
 
 **Slice 3 — Dirty data**
 - [ ] Python virtual environment; install Faker, pandas, psycopg 3

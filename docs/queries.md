@@ -108,7 +108,8 @@ FROM (
     SELECT c.*,
            CASE
              WHEN c.entry = 'file import' AND NOT c.granted
-                  THEN sl.received_at::date      -- a list's "no": from the day we received the list
+                  THEN (sl.received_at AT TIME ZONE 'America/Montreal')::date
+                                                 -- a list's "no": from the day we received the list
              WHEN c.entry = 'file import'
                   THEN '-infinity'::date         -- a list's "yes": only if there is nothing else
              ELSE c.given_on                     -- the person's own choice: its real date
@@ -128,6 +129,7 @@ ORDER BY person_id, purpose_id,
 
 - The inner query gives each answer its `counts_from` date. **It asks "does this answer come from a list?" first**: a list's answer never uses a choice date (and the model keeps `given_on` empty for list answers anyway). A first version asked about the date first, and a dated list "yes" could beat a "no": that was a bug.
 - `LEFT JOIN source_list` brings the list's reception date and its proof status; answers that are not from a list simply have no list.
+- `AT TIME ZONE 'America/Montreal'` gives the **office's** calendar day. Without it, the day would depend on the connection's time zone: a list received at 22:30 in Montréal is already the next day in UTC.
 - `'-infinity'` is a PostgreSQL date older than every other date: a list's "yes" can only win if nothing else exists. It is how the rule is implemented, not the rule itself.
 - The `WHERE` sets aside the "yes" answers from lists that prove nothing.
 - `ORDER BY` puts the answer that should win first; `DISTINCT ON (person_id, purpose_id)` keeps only that one, for each person and kind of message.

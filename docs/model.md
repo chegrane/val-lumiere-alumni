@@ -479,16 +479,19 @@ Part 2 has its own file: **[queries.md](queries.md)**. It takes each question of
 | An imported answer's kind of contact is its list's kind | Constraint (link on two columns) | Slice 2 |
 | A documented list has its proof reference, check date and checker | Constraint | Slice 2 |
 | History is never changed: consent and request rows are only added (except removal, and filling in a request's handling) | Rights | Slice 5 |
-| A contact's value is never overwritten: a new address is a new row | Rights, process | Slices 2, 5 |
+| A contact's kind and value are never overwritten: a new address is a new row | Trigger | Slice 2 |
+| A program's field never changes (past degrees read their field through it) | Trigger | Slice 2 |
 | A death closes all contact | View (`active_person`) | Slice 2 |
 | `deceased_source` is filled if and only if `deceased_reported_on` is filled | Constraint | Slice 2 |
 | At most one preferred contact per person and per kind | Index | Slice 2 |
 | A `bounced` or `obsolete` contact is never preferred | Constraint | Slice 2 |
 | A consent's chosen contact belongs to the same person | Constraint (link on two columns) | Slice 2 |
+| A consent's request belongs to the same person | Constraint (link on two columns) | Slice 2 |
 | …and is an email | Trigger | Slice 2 |
 | The same degree is not stored twice (person, program, year) | Constraint | Slice 2 |
 | The same contact is not stored twice (person, kind, normalised value) | Index | Slice 2 |
 | A handled request is complete: `outcome` and `handled_by` filled if and only if `handled_on` is filled | Constraint | Slice 2 |
+| A request's reason matches its outcome: none while open or done; required when partly done or refused | Constraint | Slice 2 |
 | An access or correction request is in writing (`email` or `letter`) | Constraint | Slice 2 |
 | Every person has at least one degree | Process, test (a plain foreign key cannot enforce it) | Slices 2–3 |
 | Removal empties everything listed in 1.4, and detaches the requests | Process (one transaction), test ([Q9](queries.md#q9--a-removal-done-verified-totals-unchanged)) | Slice 2 |
