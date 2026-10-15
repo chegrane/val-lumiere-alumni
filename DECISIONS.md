@@ -165,6 +165,7 @@ Newest entries at the bottom.
   1. **The person's own choice**, with its real date (typed by the staff, unsubscribe link): the latest wins; on the same date, "no" wins.
   2. **A "no" from a list** blocks contact from the day we receive the list. An import can never reopen contact; only a later choice by the person can.
   3. **A "yes" from a list** counts only when there is nothing else, **and** only if the list documents a real, specific consent (for example, the newsletter sign-up form). Otherwise the permission is **unknown**: nothing is sent, and the person is asked to confirm.
+  - *Added 2026-10-14:* on the same day with the same answer, the person's own choice is shown rather than a list's (the decision is unchanged; only the provenance shown, so that Q6 says who refused).
   4. Three dates are kept apart: the day of the choice (`Consent.given_on`), the date a list represents and the day we received it (both on `SourceList`, D-028). A file's export date is never taken as the day of a choice.
 - **Why:** correct (an unproven "yes" is not consent), prudent (a list can block, never reopen), and no campaign to ask everyone again: documented lists keep working.
 - **Rejected:** D-024 (a list's date counted as a choice); ignoring every imported "yes" (the office would start with nobody to write to).

@@ -48,7 +48,7 @@ In the queries below, four small building blocks carry these rules, so that no l
 
 | Building block | Answers |
 |---|---|
-| `active_person` | Is the person alive and not removed? |
+| `active_person` | Is the person not reported deceased, and not removed? |
 | `sendable_email` | Which of their emails can we try? (**can**) |
 | `current_consent` | What is their usable answer today, for each kind of message, if they have one? (**may**) |
 | `recipient` | Who receives what, at which address? (**can and may**) |
@@ -94,7 +94,7 @@ Six people, used in every example. In slice 2, they become the test data.
 | **A "no" from a list** | from the day we **received** the list: it blocks, until the person chooses again later |
 | **A "yes" from a list** | only when there is nothing else, and only if the list proves consent for that kind of message (the newsletter sign-up forms do; the reunion spreadsheet does not) |
 
-Then: **the latest wins, and on the same day, "no" wins.** In one sentence: *an old "yes" can never cancel a "no", and a "yes" we cannot justify is not enough to send.*
+Then: **the latest wins, and on the same day, "no" wins.** (And on the same day with the same answer, the person's own choice is shown rather than a list, so that Q6 says who refused.) In one sentence: *an old "yes" can never cancel a "no", and a "yes" we cannot justify is not enough to send.*
 
 **No row is not "no".** The view returns the **usable** answer, when one exists. A person with no row has no usable answer: either they were never asked (Gérard), or their only "yes" comes from a list that proves nothing. Either way, nothing is sent. List E finds the second case, so the office can ask them.
 
@@ -123,6 +123,7 @@ FROM (
 ORDER BY person_id, purpose_id,
          counts_from DESC,     -- the latest first
          granted,              -- same day: "no" (false) before "yes"
+         (entry = 'file import'),  -- same day, same answer: the person's own choice first
          recorded_at DESC,     -- still tied: the last one recorded
          consent_id DESC;      -- and a final tie-breaker, so the choice never changes
 ```
@@ -142,7 +143,7 @@ ORDER BY person_id, purpose_id,
 
 ```sql
 CREATE VIEW active_person AS
-SELECT *
+SELECT person_id, first_name, last_name   -- only what the lists need: a view is also an interface
 FROM person
 WHERE deceased_reported_on IS NULL
   AND removed_on IS NULL;
@@ -175,7 +176,7 @@ WHERE c.kind = 'email'
 
 ```sql
 CREATE VIEW recipient AS
-SELECT cc.person_id, cc.purpose_id, se.email
+SELECT cc.person_id, cc.purpose_id, se.contact_id, se.email
 FROM current_consent cc
 JOIN sendable_email se
   ON se.person_id = cc.person_id
@@ -546,6 +547,9 @@ Each case is dated, with its expected result. In slice 2, each becomes a test.
 | 14 | Paul (a separate scenario) is removed in 2025; in 2026 the registrar sends a new degree with his student number | The degree is **ignored**; the degree total misses it (accepted limit) |
 | 15 | After Paul's removal | Q9's check query is **empty**; Q1's degree totals are unchanged |
 | 16 | An access request received by phone | **Refused by the database**: an access request must be in writing |
+| 17 | Robert says "no" by phone on 2024-05-10, and a list received the same day also says "no" | **No**; the source shown is Robert's own refusal (Q6 lists him as having refused) |
+| 18 | Léa chose her personal email for the newsletter; that email bounces | **Not sent**: no fallback to her university email |
+| 19 | A person agreed to events, has two sendable emails, none preferred and none chosen | **Not sent**; the staff are alerted |
 
 ---
 
