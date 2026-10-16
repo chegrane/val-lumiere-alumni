@@ -32,18 +32,19 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 ## Next
 
 **Slice 2 — Schema**
-- [ ] `sql/schema.sql` from the model
+- [x] `sql/01_schema.sql` (14 tables) and `sql/02_views.sql` (4 views) from the model
 - [ ] Decide the sort order for French names (`C.UTF-8` or a French–Canada collation)
-- [ ] `Contact`: add UNIQUE (`contact_id`, `person_id`) for the two-column link from `Consent`; deletion of a contact blocked (`ON DELETE RESTRICT`), except at removal; a returning old address reactivates its `obsolete` row
-- [ ] Write SQL tests from the cast and the 19 edge cases of `docs/queries.md`
-- [ ] Write the schema's negative tests: each constraint and trigger refuses its bad row (18 cases tried by hand on 2026-10-14), **including the NULL trap**: an open request with a reason must be refused; a refused request without a reason too
+- [x] `Contact`: add UNIQUE (`contact_id`, `person_id`) for the two-column link from `Consent`; deletion of a contact blocked (`ON DELETE RESTRICT`), except at removal; a returning old address reactivates its `obsolete` row
+- [x] Tests (`pytest`): the expected results on the test data and the edge cases of `docs/queries.md` (2 skipped until slice 3)
+- [x] The schema's refusal tests: 26 rows that must be refused (by the right rule), 5 that must be accepted, including the NULL trap
 
 **Before the interview (26th)**
 - [ ] Read Québec privacy law for about an hour (CAI guides): consent (specific, informed, per purpose), access and correction rights, the person in charge, incident reporting
 
 **Slice 3 — Dirty data** (Oct 20–22)
 - [ ] Our own generator, not Kaggle: Faker fr_CA, CSV files, deliberate defects **with ground truth** (the generator knows which records are the same person), so cleaning can be measured
-- [ ] Python virtual environment; install Faker, pandas, psycopg 3
+- [x] Python virtual environment, `requirements.txt` (pytest, psycopg 3); Faker and pandas to add
+- [ ] Un-skip tests 13 and 14 of `tests/test_rules.py` (staging row never in a list; new degree for a listed number ignored)
 - [ ] `data/generate.py`
 
 **Slice 4 — Data quality**
@@ -52,6 +53,8 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 
 **Slice 5 — Respect for people**
 - [ ] Consent, retention, deletion or anonymisation, access roles
+- [ ] Rights: application roles read views, not tables; they cannot DELETE or UPDATE contacts, consents or requests directly (only `remove_person` deletes); history only grows (INSERT)
+- [ ] A record of confirmation questions sent (person, kind of contact, date), so list E never asks the same person twice
 
 **Before going public**
 - [ ] Check the legal statements in `docs/story.md` (access, correction, removal, responsibility, deadlines) against the Access Act on LégisQuébec

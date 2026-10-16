@@ -176,6 +176,20 @@ Newest entries at the bottom.
 - **Why:** each fact stored once (normalisation); proof found later is recorded on one row, with its date and checker, without changing any answer; evidence is specific to one kind of contact (a newsletter form does not prove consent to assignment offers).
 - **Rejected:** a proof reference on each consent row (the same duplication); a full history of every change of evidence status (not needed for this version).
 
+### D-029 — Slice 2: how the schema is built (2026-10-15)
+- **Choices:**
+  - Plain SQL in numbered files (`01_schema`, `02_views`, `03_test_data`), rebuilt from zero by `scripts/reset_db.sh`; no ORM, no migrations while there is no real data.
+  - Surrogate keys `GENERATED ALWAYS AS IDENTITY`; `text` rather than `varchar(n)`; `timestamptz` for moments, with the office's time zone (`America/Montreal`) stated whenever a moment becomes a calendar day.
+  - Texts stored already cleaned (`<table>_<column>_trimmed`); uniqueness whatever the letter case through expression indexes on `lower(...)`; student numbers in one format (uppercase letters and digits).
+  - Short fixed lists as named `CHECK` constraints; lists managed by the staff as reference tables.
+  - Rules across rows through foreign keys on two columns; values that never change through one generic trigger function, `forbid_update()`; the chosen contact's kind through a trigger.
+  - Foreign keys keep the default (refuse deleting a row still referenced); the chosen contact is `ON DELETE RESTRICT`.
+  - Graduation years from 1965, the founding year of Val-Lumière.
+  - Removal in one function, `remove_person`, in one transaction.
+  - Tests with `pytest` and `psycopg`, on a separate test database, each test in a transaction rolled back at the end.
+- **Why:** each rule enforced by the strongest tool that can see it (lesson 9), and every rule proven by a test that must pass and one that must be refused (lesson 21).
+- **Rejected:** an ORM (hides the SQL the project is meant to show); `serial` (older than identity columns); `varchar(n)` with arbitrary limits; testing by hand only.
+
 ## Open questions
 
 - **Sort order of French names:** the database uses the default `C.UTF-8` collation, which sorts `Émilie` after `Zoé`. Decide in slice 2 whether to use a French (Canada) collation.

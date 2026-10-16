@@ -228,6 +228,16 @@ CHECK ((reason_code IS NOT NULL) = (outcome IS NOT NULL AND outcome <> 'done'))
 
 **In the project:** [02_views.sql](../sql/02_views.sql), [queries.md, Q1](queries.md#q1--how-many-graduates-do-we-have-by-faculty-and-by-year).
 
+### 22. A value the database accepts may be impossible to read in your language
+
+**What happened.** In `current_consent`, a list's "yes" got the sort date `-infinity`, a date older than all others. PostgreSQL handles it perfectly. The first time a Python test **read** that value, the driver failed: `date too small (before year 1): '-infinity'`. A Python `date` lives between years 1 and 9999.
+
+**The lesson.** A technical trick used inside a query should stay inside it. The view now sorts on an internal column (`sort_date`) and shows `counts_from` empty instead (`NULLIF(sort_date, '-infinity')`).
+
+**And a second trap, avoided on the way:** the shown column must not have the same name as the sorted one. `ORDER BY` uses the **shown** columns first: it would have sorted on the NULL value, and `DESC` puts NULLs first, so a list's "yes" would have won everywhere.
+
+**In the project:** `current_consent` in [02_views.sql](../sql/02_views.sql); found by `test_07` and `test_08` in `tests/test_rules.py`.
+
 ---
 
 ## Working method
@@ -240,6 +250,16 @@ And testing only valid examples is not enough. For each rule, write one case tha
 
 **In the project:** the edge cases of [queries.md](queries.md#edge-cases-to-test) and the schema's refusal checks in `tests/` become automatic tests.
 
+### 23. A test that cannot fail proves nothing
+
+**What happened.** With 54 tests passing, the strict reviewer pointed out that we could **delete** the death filter of `active_person` (the rule that prevents the story's painful mistake) and all 54 would still pass: nobody in the test data was deceased. The same was true for `obsolete` emails and for the time zone of a list's reception.
+
+**The lesson.** For each rule, ask: *if I broke this rule, which test would fail?* If the answer is "none", the rule is not tested. The check has a name, **mutation testing**: break the code on purpose, run the tests, and see them fail. Here, after adding the missing tests, each of the three mutations was caught by exactly one test.
+
+**A cousin of this trap: counting instead of naming.** The reachability test checked only the totals (6 active, 4 reachable, 3 valid). When Robert and Karim swapped their email status, the totals stayed the same and the test still passed. A test that says **who** (Léa, Karim, Nadia) catches what a count hides.
+
+**In the project:** `test_a_reported_death_closes_all_contact`, `test_obsolete_email_is_not_sendable`, `test_04_…_in_montreal` in `tests/test_rules.py`.
+
 ---
 
 ## In short
@@ -251,3 +271,4 @@ And testing only valid examples is not enough. For each rule, write one case tha
 - **Make ambiguity explicit:** which time zone, which order, absent versus "no".
 - **Design views as interfaces:** one rule written once, and only the columns that are needed.
 - **For every rule: state it, enforce it, and test what must pass and what must be refused.**
+- **Then break it on purpose: a test that cannot fail proves nothing.**

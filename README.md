@@ -33,6 +33,7 @@ Then, from the project folder:
 scripts/reset_db.sh                                  # build the database: schema, views, test data
 python3 -m venv .venv && source .venv/bin/activate   # a private Python environment
 pip install -r requirements.txt                      # pytest and psycopg
+pytest                                               # run the tests
 ```
 
 New to Linux, PostgreSQL or WSL? Follow the **[step-by-step tutorial](docs/setup.md)**: every command explained.

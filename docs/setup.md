@@ -437,3 +437,21 @@ conn.close()
 ```
 
 **The value travels separately from the SQL text** (`%s`, then the value). This is a **parameterized query**, the protection against SQL injection: a value is never pasted into the SQL string.
+
+### Step 16 — Run the tests
+
+With `(.venv)` active, from the project folder:
+
+```bash
+pytest
+```
+
+`pytest` finds the tests in `tests/`, rebuilds a **separate** test database (`val_lumiere_test`, so `val_lumiere_alumni` is never touched), and runs each test inside a transaction that is cancelled afterwards.
+
+**You should see:** a dot per passing test, then a summary such as `77 passed, 2 skipped`. The two skipped tests wait for the imports of slice 3.
+
+| Option | Meaning |
+|---|---|
+| `pytest -v` | **V**erbose: one line per test, with its name |
+| `pytest -k removal` | Run only the tests whose name contains "removal" |
+| `pytest -x` | Stop at the first failure |

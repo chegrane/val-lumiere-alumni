@@ -97,8 +97,10 @@ CREATE TABLE person (
 
     -- Texts are already cleaned: not empty, no spaces at either end. NULL passes (a CHECK
     -- only judges values that are present).
-    CONSTRAINT person_student_number_trimmed
-        CHECK (student_number <> '' AND student_number = btrim(student_number)),
+    -- A student number is written one way only: uppercase letters and digits ("VL2003027").
+    -- Otherwise 'vl2003027' would be a different value, and get past UNIQUE and the suppression list.
+    CONSTRAINT person_student_number_format
+        CHECK (student_number ~ '^[A-Z0-9]+$'),   -- ~ : matches this regular expression
     CONSTRAINT person_first_name_trimmed
         CHECK (first_name <> '' AND first_name = btrim(first_name)),
     CONSTRAINT person_last_name_trimmed
@@ -144,9 +146,9 @@ CREATE TABLE degree (
     CONSTRAINT degree_once UNIQUE (person_id, program_id, graduation_year),
 
     -- A plausible year: a sanity check against typing errors (1899, 20012…).
-    -- Lower bound: in the story, the oldest records are the faculty spreadsheets of the 1990s.
+    -- Lower bound: Val-Lumière was founded in 1965 (the registrar sends degrees back to then).
     CONSTRAINT degree_graduation_year_range
-        CHECK (graduation_year BETWEEN 1990 AND 2100),
+        CHECK (graduation_year BETWEEN 1965 AND 2100),
 
     -- Texts are already cleaned.
     CONSTRAINT degree_name_at_graduation_trimmed
@@ -217,6 +219,24 @@ CREATE TRIGGER contact_kind_value_never_change
     FOR EACH ROW WHEN (OLD.kind IS DISTINCT FROM NEW.kind OR OLD.value IS DISTINCT FROM NEW.value)
     EXECUTE FUNCTION forbid_update('contact.kind and contact.value never change: add a new contact instead');
 
+-- When the status changes, status_changed_on must follow. If the change gives its own date
+-- (an import may know the real day of a bounce), it is kept; otherwise it becomes the office's
+-- today, so the date is never left stale.
+CREATE FUNCTION contact_status_date() RETURNS trigger
+LANGUAGE plpgsql AS $$
+BEGIN
+    IF NEW.status_changed_on IS NOT DISTINCT FROM OLD.status_changed_on THEN
+        NEW.status_changed_on := (now() AT TIME ZONE 'America/Montreal')::date;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER contact_status_date
+    BEFORE UPDATE OF status ON contact
+    FOR EACH ROW WHEN (OLD.status IS DISTINCT FROM NEW.status)
+    EXECUTE FUNCTION contact_status_date();
+
 -- =====================================================================
 -- Consent
 -- =====================================================================
@@ -247,6 +267,10 @@ CREATE TABLE source_list (
         CHECK (evidence_ref <> '' AND evidence_ref = btrim(evidence_ref)),
     CONSTRAINT source_list_evidence_checked_by_trimmed
         CHECK (evidence_checked_by <> '' AND evidence_checked_by = btrim(evidence_checked_by)),
+
+    -- A list cannot describe a day after the office received it.
+    CONSTRAINT source_list_represents_before_received
+        CHECK (represents_on <= (received_at AT TIME ZONE 'America/Montreal')::date),
 
     -- A documented list has its proof reference, check date and checker; an undocumented one has none.
     CONSTRAINT source_list_evidence_complete
@@ -335,6 +359,11 @@ CREATE TABLE consent (
     CONSTRAINT consent_recorded_by_trimmed
         CHECK (recorded_by <> '' AND recorded_by = btrim(recorded_by)),
 
+    -- A choice cannot be dated after the day it was recorded. Without it, a typing error
+    -- ("2062" for "2026") would make that answer win forever over every later choice.
+    CONSTRAINT consent_given_on_not_after_recording
+        CHECK (given_on <= (recorded_at AT TIME ZONE 'America/Montreal')::date),
+
     -- An answer points to a list if and only if it comes from a list.
     CONSTRAINT consent_list_iff_import
         CHECK ((entry = 'file import') = (source_list_id IS NOT NULL)),
@@ -397,8 +426,9 @@ CREATE TABLE do_not_contact (
 
     CONSTRAINT do_not_contact_reason_allowed
         CHECK (reason IN ('deceased', 'stop', 'removed')),
-    CONSTRAINT do_not_contact_student_number_trimmed
-        CHECK (student_number <> '' AND student_number = btrim(student_number))
+    -- Same format as person.student_number, so an import cannot slip past it by letter case.
+    CONSTRAINT do_not_contact_student_number_format
+        CHECK (student_number ~ '^[A-Z0-9]+$')
 );
 
 -- =====================================================================
@@ -439,3 +469,90 @@ CREATE TABLE person_expertise (
     -- The key is the pair: the same field is not recorded twice for the same person.
     CONSTRAINT person_expertise_pk PRIMARY KEY (person_id, field_id)
 );
+
+-- =====================================================================
+-- Procedures
+-- =====================================================================
+
+-- Remove a person's information (docs/model.md, 1.4), in ONE transaction: a function runs
+-- inside the single statement that calls it, so either every step is done, or none.
+--     SELECT remove_person(person_id, '2026-10-15');
+-- The order of the steps matters:
+--   1. decide the suppression-list reason BEFORE anything is erased
+--      (priority: deceased > stop > removed; "since" = the date of that reason);
+--   2. delete the consents FIRST: they point to the person's requests and contacts;
+--   3. then the other rows, detach the requests (kept as proof), and empty the person.
+-- The removal request itself is recorded and closed by the caller, in ONE transaction:
+--     BEGIN;
+--       INSERT INTO request (person_id, type, received_on, channel)
+--            VALUES (42, 'remove', '2026-10-15', 'email') RETURNING request_id;   -- say 7
+--       SELECT remove_person(42, '2026-10-15');   -- detaches request 7 with the others
+--       UPDATE request SET handled_on = '2026-10-15', outcome = 'done', handled_by = 'privacy officer'
+--        WHERE request_id = 7;
+--     COMMIT;   -- if any step fails: ROLLBACK, and nothing at all has changed
+CREATE FUNCTION remove_person(p_person_id integer, p_on date) RETURNS void
+LANGUAGE plpgsql AS $$
+DECLARE
+    v_student_number  text;
+    v_deceased_on     date;
+    v_first_stop      date;
+BEGIN
+    IF p_on IS NULL THEN
+        RAISE EXCEPTION 'remove_person: a removal date is required';
+    END IF;
+
+    SELECT student_number, deceased_reported_on
+      INTO v_student_number, v_deceased_on
+      FROM person
+     WHERE person_id = p_person_id AND removed_on IS NULL
+       FOR UPDATE;   -- lock the row: two removals of the same person at the same moment wait for each other
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'remove_person: no person % that is not already removed', p_person_id;
+    END IF;
+
+    -- 1. The suppression list (only possible with a student number).
+    SELECT min(received_on) INTO v_first_stop
+      FROM request WHERE person_id = p_person_id AND type = 'stop';
+    IF v_student_number IS NOT NULL THEN
+        -- An ACTIVE person holding a number that is already on the list means an import let a
+        -- listed number back in (D-023 forbids it): warn, so someone checks that import.
+        IF EXISTS (SELECT 1 FROM do_not_contact WHERE student_number = v_student_number) THEN
+            RAISE WARNING 'remove_person: % was already on the suppression list: check the import that brought it back',
+                          v_student_number;
+        END IF;
+        INSERT INTO do_not_contact (student_number, reason, since)
+        VALUES (v_student_number,
+                CASE WHEN v_deceased_on IS NOT NULL THEN 'deceased'
+                     WHEN v_first_stop  IS NOT NULL THEN 'stop'
+                     ELSE 'removed' END,
+                COALESCE(v_deceased_on, v_first_stop, p_on))
+        -- Already listed: one reason per number, the higher one wins (deceased > stop > removed).
+        -- EXCLUDED is the row we tried to insert.
+        ON CONFLICT (student_number) DO UPDATE
+            SET reason = EXCLUDED.reason, since = EXCLUDED.since
+            WHERE (CASE EXCLUDED.reason      WHEN 'deceased' THEN 3 WHEN 'stop' THEN 2 ELSE 1 END)
+                > (CASE do_not_contact.reason WHEN 'deceased' THEN 3 WHEN 'stop' THEN 2 ELSE 1 END);
+    END IF;
+
+    -- 2. Delete what goes. Consents first: they point to requests and contacts.
+    DELETE FROM consent          WHERE person_id = p_person_id;
+    DELETE FROM registration     WHERE person_id = p_person_id;
+    DELETE FROM person_expertise WHERE person_id = p_person_id;
+    DELETE FROM contact          WHERE person_id = p_person_id;
+
+    -- 3. Keep the requests as proof, without saying for whom.
+    UPDATE request SET person_id = NULL WHERE person_id = p_person_id;
+
+    -- 4. Keep the degrees for the totals, without the name on the diploma or the file name.
+    UPDATE degree
+       SET name_at_graduation = NULL,
+           source = CASE WHEN source = 'registrar' THEN 'registrar' ELSE 'spreadsheet' END
+     WHERE person_id = p_person_id;
+
+    -- 5. Empty the person (the constraint person_removed_is_empty checks this step).
+    UPDATE person
+       SET first_name = NULL, last_name = NULL, student_number = NULL, birth_date = NULL,
+           deceased_reported_on = NULL, deceased_source = NULL, removed_on = p_on
+     WHERE person_id = p_person_id;
+END;
+$$;

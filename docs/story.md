@@ -12,7 +12,7 @@ The story is told in the order things happen: first a request, then meetings wit
 
 The Director of the Alumni Relations Office sends us this message:
 
-> Université de Val-Lumière, a public university in Québec, has awarded degrees to about 60,000 people since it was founded. Our office exists to keep a lasting link with them: we send them news, we invite them to our events, and we call on them when the university needs their experience.
+> Université de Val-Lumière, a public university in Québec, has awarded degrees to about 60,000 people since it was founded, in 1965. Our office exists to keep a lasting link with them: we send them news, we invite them to our events, and we call on them when the university needs their experience.
 >
 > Our information is spread over many files, and it is getting harder every year to know who our graduates are and how to reach them. Recently we made a painful mistake because of it.
 >

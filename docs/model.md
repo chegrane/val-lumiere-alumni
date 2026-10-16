@@ -228,12 +228,12 @@ classDiagram
 ### 1.3 Data dictionary: every attribute explained
 
 **How to read it**
-- **Type:** the planned PostgreSQL type. The final choice is made in `sql/schema.sql` (slice 2).
+- **Type:** the PostgreSQL type, as built in [sql/01_schema.sql](../sql/01_schema.sql).
 - **Req.** (required): `*` = the value must always be there (`NOT NULL`); empty = the value may be missing.
 - **Links** (`… → Class`): the column that points to another class (a foreign key). The class diagram does not show these columns; the tables do.
 - **Identifiers** (`…_id`): an internal whole number, created automatically, with no meaning outside our system ([D-015](../DECISIONS.md#d-015--internal-primary-key-the-student-number-is-an-attribute-2026-10-10)).
 
-**Two ways to limit a value to a list** (a choice to confirm in slice 2)
+**Two ways to limit a value to a list** (as built in slice 2, D-029)
 - A **reference class** (`Faculty`, `Field`, `ContactPurpose`) when the list grows over time, is managed by the staff, or is shared by several classes.
 - A **fixed list** checked by the database (`CHECK`) when the list is short and only changes with the model: `kind`, `status`, `type`, `outcome`…
 
@@ -266,7 +266,7 @@ classDiagram
 | Attribute | Type | Req. | Purpose |
 |---|---|---|---|
 | `person_id` | integer | * | Identifier (the key; never shown outside the system) |
-| `student_number` | text |  | Given by the registrar, for life. Unique when present; empty in old spreadsheets. **Text, not a number:** it may start with zeros or contain letters, and we never calculate with it |
+| `student_number` | text |  | Given by the registrar, for life. Unique when present; empty in old spreadsheets. **Uppercase letters and digits only** (`VL2003027`). **Text, not a number:** it may start with zeros or contain letters, and we never calculate with it |
 | `first_name` | text | * ¹ | Current first name, used by the office |
 | `last_name` | text | * ¹ | Current family name |
 | `birth_date` | date |  | From the registrar's copy or an old spreadsheet. Tells apart two people with the same name and year (duplicates, slice 4) |
@@ -284,7 +284,7 @@ classDiagram
 | `person_id` | → `Person` | * | Who obtained it |
 | `program_id` | → `Program` | * | Which program (and through it, which level and field) |
 | `faculty_id` | → `Faculty` | * | The faculty **at graduation**, as given by the registrar. Statistics by faculty use this one ([D-025](../DECISIONS.md#d-025--faculty-at-graduation-stored-on-each-degree-2026-10-12)) |
-| `graduation_year` | integer | * | Year of graduation: the most frequent filter in statistics |
+| `graduation_year` | integer | * | Year of graduation: the most frequent filter in statistics. From 1965, the year Val-Lumière was founded |
 | `name_at_graduation` | text |  | Name printed on the diploma. Keeps the former name (Sophie *Gagnon*) where it belongs. Emptied on removal |
 | `source` | text | * | `registrar`, or the name of the old spreadsheet it came from. The office never corrects a registrar row. After a removal: only `registrar` or `spreadsheet`, without the file name |
 
@@ -301,11 +301,11 @@ classDiagram
 | `value` | text | * | The address or number itself |
 | `is_preferred` | boolean | * | The one to use first. At most one per person and per kind (part 3). A `bounced` or `obsolete` contact cannot stay preferred. Default: no |
 | `status` | text | * | `valid`, `bounced`, `unknown`, `obsolete` (replaced by a newer address). Office 365 bounces set `bounced`. Default: `unknown` |
-| `status_changed_on` | date |  | When the status last changed: tells us *when* an address started to bounce |
+| `status_changed_on` | date |  | When the status last changed: tells us *when* an address started to bounce. Kept up to date by a trigger: the date given with the change (an import may know it), or else the office's today |
 | `last_checked_on` | date |  | Last time it was confirmed or a message to it was delivered. Answers story question 5 |
 | `source` | text | * | Where it came from: an imported file's name, "phone call", "email from the person". Needed to judge and improve quality |
 
-(`person_id`, `kind`, `value`) is unique, after normalising the value.
+(`person_id`, `kind`, `value`) is unique, **whatever the letter case** (the database compares `lower(value)`). Other normalisation (phone formats, extra spaces inside a value) happens in staging, during the imports of slice 3.
 
 #### `ContactPurpose` — the kinds of contact a person can accept or refuse
 
@@ -371,8 +371,8 @@ classDiagram
 | Attribute | Type | Req. | Purpose |
 |---|---|---|---|
 | `do_not_contact_id` | integer | * | Identifier |
-| `student_number` | text | * | The only thing kept. Unique. Checked at every import |
-| `reason` | text | * | `deceased` (a death was reported), `stop` (a stop request exists) or `removed` (otherwise). One reason per number: `deceased` wins over `stop`, `stop` over `removed` |
+| `student_number` | text | * | The only thing kept. Unique. Uppercase letters and digits only, like `person.student_number`. Checked at every import |
+| `reason` | text | * | `deceased` (a death was reported), `stop` (a stop request exists) or `removed` (otherwise). One reason per number: `deceased` wins over `stop`, `stop` over `removed`; if the number is already listed, the higher reason replaces the lower one, with a warning (an import let it back in) |
 | `since` | date | * | Since when, for the reason kept: the day the death was reported (`deceased`), the day of the stop request (`stop`), or the day of the removal (`removed`) |
 
 No link to `Person`, `Degree` or `Request`, on purpose. The list means **never contact, for anything**: at removal, any "stop", even partial, becomes total.
@@ -474,30 +474,34 @@ Part 2 has its own file: **[queries.md](queries.md)**. It takes each question of
 |---|---|---|
 | No consent means no: a person with no answer for a kind of contact is not contacted | View (`recipient`) | Slice 2 |
 | The current answer follows the three kinds of evidence (D-026) | View (`current_consent`) | Slice 2 |
-| An undocumented "yes" from a list does not count; the person is asked to confirm | View, list of answers to confirm | Slice 2 |
+| An undocumented "yes" from a list does not count; the person is asked to confirm | Views (`current_consent`, `consent_to_confirm`) | Slice 2 |
 | An imported answer points to its list, and only an imported one; it never carries a `given_on`; the person's own choices always do | Constraint | Slice 2 |
 | An imported answer's kind of contact is its list's kind | Constraint (link on two columns) | Slice 2 |
 | A documented list has its proof reference, check date and checker | Constraint | Slice 2 |
+| A list cannot describe a day after it was received | Constraint | Slice 2 |
+| A choice cannot be dated after the day it was recorded | Constraint | Slice 2 |
 | History is never changed: consent and request rows are only added (except removal, and filling in a request's handling) | Rights | Slice 5 |
 | A contact's kind and value are never overwritten: a new address is a new row | Trigger | Slice 2 |
+| When a contact's status changes, its `status_changed_on` follows | Trigger | Slice 2 |
 | A program's field never changes (past degrees read their field through it) | Trigger | Slice 2 |
 | A death closes all contact | View (`active_person`) | Slice 2 |
 | `deceased_source` is filled if and only if `deceased_reported_on` is filled | Constraint | Slice 2 |
 | At most one preferred contact per person and per kind | Index | Slice 2 |
 | A `bounced` or `obsolete` contact is never preferred | Constraint | Slice 2 |
 | A consent's chosen contact belongs to the same person | Constraint (link on two columns) | Slice 2 |
-| A consent's request belongs to the same person | Constraint (link on two columns) | Slice 2 |
 | …and is an email | Trigger | Slice 2 |
+| A consent's request belongs to the same person | Constraint (link on two columns) | Slice 2 |
+| A student number is written one way only (uppercase letters and digits), here and on the suppression list | Constraint | Slice 2 |
 | The same degree is not stored twice (person, program, year) | Constraint | Slice 2 |
 | The same contact is not stored twice (person, kind, normalised value) | Index | Slice 2 |
 | A handled request is complete: `outcome` and `handled_by` filled if and only if `handled_on` is filled | Constraint | Slice 2 |
 | A request's reason matches its outcome: none while open or done; required when partly done or refused | Constraint | Slice 2 |
 | An access or correction request is in writing (`email` or `letter`) | Constraint | Slice 2 |
-| Every person has at least one degree | Process, test (a plain foreign key cannot enforce it) | Slices 2–3 |
-| Removal empties everything listed in 1.4, and detaches the requests | Process (one transaction), test ([Q9](queries.md#q9--a-removal-done-verified-totals-unchanged)) | Slice 2 |
+| Every person has at least one degree | Test on the test data (a plain foreign key cannot enforce it); the imports in slice 3 | Slices 2–3 |
+| Removal empties everything listed in 1.4, and detaches the requests | Function `remove_person` (one transaction), tests ([Q9](queries.md#q9--a-removal-done-verified-totals-unchanged)) | Slice 2 |
 | Names are filled for every person not removed | Constraint | Slice 2 |
 | A listed number never enters again | Process | Slice 3 |
 | A record whose identity is not confirmed never enters a mailing list | Process (staging) | Slices 3–4 |
 | The registrar's row replaces a spreadsheet row for the same degree, and is never replaced | Process | Slice 3 |
-| The access report covers every class that points to a person | Test (compare the report with the list of tables that have a `person_id`) | Slice 2 |
+| The access report covers every class that points to a person | Test (compares the report with the catalogue: every table that has a `person_id`) | Slice 2 |
 | Former names, home addresses and birth dates are seen only by the staff who need them | Rights | Slice 5 |

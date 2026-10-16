@@ -7,6 +7,7 @@
 --   sendable_email   CAN:  the emails we may try
 --   current_consent  MAY:  the person's usable answer today, per kind of contact
 --   recipient        CAN AND MAY: who receives what, at which address
+--   consent_to_confirm  list E: a "yes" only from a list that proves nothing: ask the person
 --
 -- A view stores no data: it is a saved query, recomputed each time it is read.
 -- So these views are always up to date (a "stop" counts at once).
@@ -66,7 +67,7 @@ SELECT DISTINCT ON (person_id, purpose_id)       -- keep ONE row per person and 
        person_id,                                -- in the ORDER BY below
        purpose_id,
        granted,
-       counts_from,
+       NULLIF(sort_date, '-infinity') AS counts_from,  -- shown: empty for a list's "yes" (see below)
        channel,
        entry,
        source_list_id,
@@ -81,15 +82,20 @@ FROM (
              WHEN c.entry = 'file import'
                   THEN '-infinity'::date        -- 3. a list's "yes": older than any date, wins only alone
              ELSE c.given_on                    -- 1. the person's own choice: its real date
-           END AS counts_from
+           END AS sort_date
     FROM consent c
     LEFT JOIN source_list sl ON sl.source_list_id = c.source_list_id   -- empty for the person's own choices
     WHERE NOT (c.entry = 'file import'
                AND c.granted
                AND NOT sl.documented)           -- a "yes" from a list that proves nothing is set aside
 ) AS c
+-- Two names on purpose: sort_date (internal, with -infinity) and counts_from (shown, NULL instead).
+--  * '-infinity' is fine for PostgreSQL, but Python cannot hold it (a Python date is between
+--    years 1 and 9999): the driver would fail on reading it. The trick stays inside the view.
+--  * If the shown column had the SAME name, ORDER BY would sort on the shown value (NULL), and
+--    DESC puts NULLs first: a list's "yes" would win everywhere.
 ORDER BY person_id, purpose_id,
-         counts_from DESC,     -- the latest first
+         sort_date DESC,       -- the latest first (the INTERNAL date, with -infinity)
          granted,              -- same day: "no" (false sorts before true) first
          (entry = 'file import'),  -- same day, same answer: the person's own choice (false) first
          recorded_at DESC,     -- still tied: the last one recorded
@@ -115,3 +121,26 @@ JOIN sendable_email se
  AND (   se.contact_id = cc.contact_id                    -- the email chosen for this kind
       OR (cc.contact_id IS NULL AND se.is_preferred))     -- otherwise the preferred email
 WHERE cc.granted;
+
+-- =====================================================================
+-- consent_to_confirm — list E: answers to confirm
+-- =====================================================================
+-- Active people whose only "yes" for a kind of contact comes from a list that proves nothing
+-- (so they have no usable answer). The office asks them, once, for that kind of contact.
+-- NOT EXISTS: if they already have a usable answer (their own, or a list block), nothing to ask.
+-- One row per person and kind of contact, with the lists grouped in an array (in a fixed order).
+-- These are the CANDIDATES of one run: the view does not remember who was already asked.
+-- The process that sends the questions must avoid asking the same person twice (to come).
+CREATE VIEW consent_to_confirm AS
+SELECT c.person_id,
+       c.purpose_id,
+       array_agg(DISTINCT c.source_list_id ORDER BY c.source_list_id) AS source_lists
+FROM consent c
+JOIN active_person p  ON p.person_id      = c.person_id
+JOIN source_list   sl ON sl.source_list_id = c.source_list_id
+WHERE c.granted
+  AND NOT sl.documented
+  AND NOT EXISTS (SELECT 1 FROM current_consent cc
+                  WHERE cc.person_id  = c.person_id
+                    AND cc.purpose_id = c.purpose_id)
+GROUP BY c.person_id, c.purpose_id;

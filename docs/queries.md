@@ -4,7 +4,7 @@
 
 This is part 2 of the model, **Compute**. Part 1 (what we store) and part 3 (how rules are enforced) are in [model.md](model.md).
 
-> **Draft SQL.** The code shows the logic; it is tested in slice 2, once the tables exist. Table names are the class names in lowercase with `_` (`contact_purpose`, `do_not_contact`…), to be confirmed in slice 2.
+> **The SQL here is the real one.** The views are in [sql/02_views.sql](../sql/02_views.sql), the removal function in [sql/01_schema.sql](../sql/01_schema.sql), the test data in [sql/03_test_data.sql](../sql/03_test_data.sql); every expected result and edge case below is checked by the tests in `tests/` (`pytest`).
 
 ---
 
@@ -36,7 +36,7 @@ A person can pass one test and fail the other:
 
 | Person | Can we reach them? | May we contact them? | What do we do? |
 |---|---|---|---|
-| Robert | Yes: his email is valid | No: he asked us to stop | Do not send |
+| Robert | Yes: we have his email (never checked, but never failed) | No: he asked us to stop | Do not send |
 | Sophie | No: her email bounced | Yes: she agreed | Do not send; find her new address |
 | Nadia | Yes: her work email is valid | Yes, for assignment offers only | Send offers, not the newsletter |
 
@@ -62,9 +62,9 @@ Six people, used in every example. In slice 2, they become the test data.
 | Person | Degrees (faculty at graduation, field, year) | Emails | Consent history |
 |---|---|---|---|
 | **Léa** | Science, Computer science, 2024 | personal: valid, preferred · university: obsolete | newsletter yes, events yes |
-| **Robert** | Administration, Management, 1995 | personal: valid, preferred | "Newsletter sign-ups 2019" (an imported list, documented by the sign-up forms): yes · 2024-05-10, by phone: **no** to everything |
+| **Robert** | Administration, Management, 1995 | personal: **unknown** (given by phone, never checked), preferred | "Newsletter sign-ups 2019" (an imported list, documented by the sign-up forms): yes · 2024-05-10, by phone: **no** to everything |
 | **Sophie** | Education, Education, 2009 | personal: **bounced** | newsletter yes, events yes |
-| **Karim** | Science, Mathematics, 1998 · Engineering, Civil engineering, 2012 | personal: **unknown** (never checked), preferred | events yes · newsletter: yes on 2026-01-15, then **unsubscribe link** on 2026-03-02 |
+| **Karim** | Science, Mathematics, 1998 · Engineering, Civil engineering, 2012 | personal: valid (his unsubscribe click proves a newsletter reached him), preferred | events yes · newsletter: yes on 2026-01-15, then **unsubscribe link** on 2026-03-02 |
 | **Nadia** | Engineering, Civil engineering, 2003 · expertise: Civil engineering | work: valid, preferred | offers yes |
 | **Gérard** | Engineering, Civil engineering, 1995 (old spreadsheet) | none | none: never asked |
 
@@ -103,7 +103,9 @@ Then: **the latest wins, and on the same day, "no" wins.** (And on the same day 
 ```sql
 CREATE VIEW current_consent AS
 SELECT DISTINCT ON (person_id, purpose_id)
-       person_id, purpose_id, granted, counts_from, channel, entry, source_list_id, contact_id
+       person_id, purpose_id, granted,
+       NULLIF(sort_date, '-infinity') AS counts_from,   -- shown: empty for a list's "yes"
+       channel, entry, source_list_id, contact_id
 FROM (
     SELECT c.*,
            CASE
@@ -113,7 +115,7 @@ FROM (
              WHEN c.entry = 'file import'
                   THEN '-infinity'::date         -- a list's "yes": only if there is nothing else
              ELSE c.given_on                     -- the person's own choice: its real date
-           END AS counts_from
+           END AS sort_date
     FROM consent c
     LEFT JOIN source_list sl ON sl.source_list_id = c.source_list_id
     WHERE NOT (c.entry = 'file import'
@@ -121,17 +123,18 @@ FROM (
                AND NOT sl.documented)            -- a "yes" from a list that proves nothing is set aside
 ) AS c
 ORDER BY person_id, purpose_id,
-         counts_from DESC,     -- the latest first
+         sort_date DESC,       -- the latest first (the internal date)
          granted,              -- same day: "no" (false) before "yes"
          (entry = 'file import'),  -- same day, same answer: the person's own choice first
          recorded_at DESC,     -- still tied: the last one recorded
          consent_id DESC;      -- and a final tie-breaker, so the choice never changes
 ```
 
-- The inner query gives each answer its `counts_from` date. **It asks "does this answer come from a list?" first**: a list's answer never uses a choice date (and the model keeps `given_on` empty for list answers anyway). A first version asked about the date first, and a dated list "yes" could beat a "no": that was a bug.
+- The inner query gives each answer its sort date, `sort_date`. **It asks "does this answer come from a list?" first**: a list's answer never uses a choice date (and the model keeps `given_on` empty for list answers anyway). A first version asked about the date first, and a dated list "yes" could beat a "no": that was a bug.
 - `LEFT JOIN source_list` brings the list's reception date and its proof status; answers that are not from a list simply have no list.
 - `AT TIME ZONE 'America/Montreal'` gives the **office's** calendar day. Without it, the day would depend on the connection's time zone: a list received at 22:30 in Montréal is already the next day in UTC.
 - `'-infinity'` is a PostgreSQL date older than every other date: a list's "yes" can only win if nothing else exists. It is how the rule is implemented, not the rule itself.
+- **The trick stays inside the view.** Python cannot hold `-infinity` (a Python date is between years 1 and 9999), so the view shows `counts_from` **empty** for a list's "yes" (`NULLIF`). And the two columns have **different names** on purpose: with the same name, `ORDER BY` would sort on the shown value (NULL), and `DESC` puts NULLs first, so a list's "yes" would win everywhere.
 - The `WHERE` sets aside the "yes" answers from lists that prove nothing.
 - `ORDER BY` puts the answer that should win first; `DISTINCT ON (person_id, purpose_id)` keeps only that one, for each person and kind of message.
 
@@ -153,7 +156,7 @@ WHERE deceased_reported_on IS NULL
 
 ### `sendable_email` — which emails can we try? (*can*)
 
-**A small example.** Léa has two emails: her personal one works; her university one is `obsolete` (she stopped reading it). Karim's email has never been checked: its status is `unknown`. Sophie's only email bounced.
+**A small example.** Léa has two emails: her personal one works; her university one is `obsolete` (she stopped reading it). Robert's email was given by phone and never checked: its status is `unknown`. Sophie's only email bounced.
 
 **The rule.** An email is `valid` when a message to it was delivered, or the person confirmed it; `unknown` when neither has happened yet. An email is *sendable* when it belongs to an active person and is `valid` or `unknown`. We include `unknown` on purpose: most addresses are never formally checked, and an address that was never shown to fail is worth trying. That is why the view is called *sendable* and not *working*: it means "we may try", not "it works".
 
@@ -166,7 +169,7 @@ WHERE c.kind = 'email'
   AND c.status IN ('valid', 'unknown');
 ```
 
-**The result.** Léa (personal), Robert, Karim (`unknown`), Nadia. Not Sophie, not Léa's university email, not Gérard.
+**The result.** Léa (personal), Robert (`unknown`), Karim, Nadia. Not Sophie, not Léa's university email, not Gérard.
 
 ### `recipient` — who receives what, at which address? (*can and may*)
 
@@ -188,7 +191,7 @@ WHERE cc.granted;
 - `WHERE cc.granted` keeps only the "yes" answers (*may*).
 - The `JOIN` keeps a person only if a sendable email matches (*can*). A person who fails either test simply does not appear.
 - If the chosen email is no longer sendable, the join finds nothing: not sent, as decided.
-- A person with sendable emails but **none preferred and none chosen** is not in the list either. That is on purpose: we do not guess which address to use. The staff are alerted to ask.
+- A person with sendable emails but **none preferred and none chosen** is not in the list either. That is on purpose: we do not guess which address to use. The staff should be alerted to ask: that alert list comes with the quality report (slice 4).
 
 **The result.** Léa (newsletter, events), Karim (events only, since he unsubscribed from the newsletter), Nadia (offers).
 
@@ -240,9 +243,9 @@ ORDER BY level, faculty, year;
 **The question.** How many living, non-removed graduates have at least one email the office can try? We are **not** asking yet whether they agreed to receive a message.
 
 **A small example.**
-- Robert has a valid email, but asked us to stop. He **counts** here: we have a usable address. He will appear on no mailing list, because his answer is "no".
+- Robert has an email we can try, but asked us to stop. He **counts** here: we have a usable address. He will appear on no mailing list, because his answer is "no".
 - Sophie agreed to receive messages, but her only email bounced. She **does not count**: her case needs the office's attention.
-- Karim's email has never been checked (`unknown`). He counts as *potentially* reachable, not as having a *valid* email.
+- Robert's email has never been checked (`unknown`). He counts as *potentially* reachable, not as having a *valid* email.
 
 **The rule.** Start from active people, and count each person **once** (Léa has two emails). Report two measures:
 - **potentially reachable:** at least one email `valid` or `unknown`, which the office may try;
@@ -257,7 +260,7 @@ SELECT (SELECT COUNT(*) FROM active_person)                       AS active_peop
          WHERE status = 'valid')                                  AS with_valid_email;
 ```
 
-**The result.** 6 active people; 4 potentially reachable (Léa, Robert, Karim, Nadia); 3 with a valid email (Léa, Robert, Nadia).
+**The result.** 6 active people; 4 potentially reachable (Léa, Robert, Karim, Nadia); 3 with a valid email (Léa, Karim, Nadia).
 
 **To remember:** the two people we cannot reach (Sophie, Gérard) are a **contact data** problem. Robert is a different problem: we *can* reach him, but we *may not*. That is why reachability and consent are calculated separately.
 
@@ -289,7 +292,7 @@ JOIN contact_purpose cp ON cp.purpose_id = r.purpose_id
 WHERE cp.name = 'events';
 ```
 
-**The result.** Léa and Karim, once each. Karim has two degrees, but `recipient` does not look at degrees: one row per person and kind of message. Sophie agreed but cannot be reached: she goes on the office's "find a new address" list.
+**The result.** Léa and Karim, once each. Karim has two degrees, but `recipient` does not look at degrees: one row per person and kind of message. Sophie agreed but cannot be reached: she belongs on a "find a new address" list for the staff, which comes with the quality report (slice 4).
 
 ### List B — A department event: Mathematics graduates of 1995 to 2000
 
@@ -429,7 +432,8 @@ SELECT * FROM person            WHERE person_id = 48213;
 SELECT * FROM degree            WHERE person_id = 48213;
 SELECT * FROM contact           WHERE person_id = 48213;
 SELECT * FROM consent           WHERE person_id = 48213
-         ORDER BY COALESCE(given_on, recorded_at::date);
+         ORDER BY COALESCE(given_on, (recorded_at AT TIME ZONE 'America/Montreal')::date);
+                                  -- choices by their date, list answers by the office's day of recording
 SELECT * FROM request           WHERE person_id = 48213 ORDER BY received_on;
 SELECT * FROM registration      WHERE person_id = 48213;
 SELECT * FROM person_expertise  WHERE person_id = 48213;
@@ -444,7 +448,7 @@ For imported answers, the report also names the list each one came from (`source
 **The question.** A graduate asks us to remove their information. Did we do everything we promised, and did the statistics stay the same?
 
 **Two different things.**
-- **Doing it** changes the data: the steps of [model.md, 1.4](model.md#14-removal). They run as **one transaction**: everything is done, or nothing. This is written in slice 2.
+- **Doing it** changes the data: the steps of [model.md, 1.4](model.md#14-removal). They run in the function `remove_person(person_id, date)`, in **one transaction**: everything is done, or nothing. The order matters: the suppression-list reason is decided first, then the consents are deleted **before** the requests are detached (they point to them). The removal request itself is recorded **before** the call and closed after it, all in **one transaction** (`BEGIN` … `COMMIT`), with the same date: the full example is in the comment above `remove_person`. The function also locks the person's row (`FOR UPDATE`), so two removals of the same person at the same moment cannot collide.
 - **Verifying it** reads the data and looks for mistakes. That is the query below.
 
 **The rule.** A **check query** lists the removed people who still have something that should be gone. **Its correct answer is empty.** One row means a mistake.
@@ -505,21 +509,25 @@ ORDER BY received_on;
 
 ### List E — Answers to confirm
 
-**The rule.** People whose only "yes" for a kind of message comes from a list that proves nothing: they have no usable answer. The office asks them to confirm, once, for that kind of message.
+**The rule.** People whose only "yes" for a kind of message comes from a list that proves nothing: they have no usable answer. The office asks them to confirm, once, for that kind of message. It is the view `consent_to_confirm`:
 
 ```sql
-SELECT DISTINCT c.person_id, cp.name AS purpose, sl.name AS list
+CREATE VIEW consent_to_confirm AS
+SELECT c.person_id, c.purpose_id,
+       array_agg(DISTINCT c.source_list_id ORDER BY c.source_list_id) AS source_lists   -- one row per person and kind
 FROM consent c
 JOIN active_person   p  ON p.person_id      = c.person_id
-JOIN contact_purpose cp ON cp.purpose_id    = c.purpose_id
 JOIN source_list     sl ON sl.source_list_id = c.source_list_id
 WHERE c.granted
   AND NOT sl.documented
   AND NOT EXISTS (SELECT 1 FROM current_consent cc
                   WHERE cc.person_id  = c.person_id
-                    AND cc.purpose_id = c.purpose_id);
+                    AND cc.purpose_id = c.purpose_id)
+GROUP BY c.person_id, c.purpose_id;
 ```
 
+- These are the **candidates of one run**: the view does not remember who was already asked. The process that sends the questions must avoid asking the same person again (a record of questions sent comes later).
+- `GROUP BY` gives one row per person and kind, even if they are on two such lists; `array_agg` keeps the lists together, so the staff can see where the "yes" came from.
 - `NOT EXISTS` keeps only the people with no usable answer for that kind: if they already said yes or no themselves, or a list blocks them, there is nothing to ask.
 - **Proof found later.** If the office later finds the forms behind a list, it records the proof **on the list** (where it is, when and by whom it was checked). The list becomes documented; its "yes" answers count from then on, and they leave list E. No answer is rewritten.
 
@@ -542,14 +550,17 @@ Each case is dated, with its expected result. In slice 2, each becomes a test.
 | 9 | A documented newsletter list, used for assignment offers | **Refused by the database**: a list is about one kind of contact only |
 | 10 | An answer from a list that carries a choice date | **Refused by the database**: a list snapshot never carries a choice date |
 | 11 | A "yes" and a "no" from the person, same day | **No** |
-| 12 | Karim's email is `unknown` | Potentially reachable, no valid email; still invited to the reunion |
+| 12 | Robert's email is `unknown` (from a phone call, never checked) | Potentially reachable, no valid email; still **not** invited: he said stop (can, but may not) |
 | 13 | A staging row "M. Tremblay, 1995", identity not confirmed | In **no** list; never in `person` until confirmed |
 | 14 | Paul (a separate scenario) is removed in 2025; in 2026 the registrar sends a new degree with his student number | The degree is **ignored**; the degree total misses it (accepted limit) |
-| 15 | After Paul's removal | Q9's check query is **empty**; Q1's degree totals are unchanged |
+| 15 | Robert is removed with `remove_person` | Q9's check query is **empty**; Q1's degree totals unchanged; suppression list: `stop`, since 2024-05-10; his request kept, detached. And a bad removal (a contact left) **is** found by Q9 |
 | 16 | An access request received by phone | **Refused by the database**: an access request must be in writing |
 | 17 | Robert says "no" by phone on 2024-05-10, and a list received the same day also says "no" | **No**; the source shown is Robert's own refusal (Q6 lists him as having refused) |
 | 18 | Léa chose her personal email for the newsletter; that email bounces | **Not sent**: no fallback to her university email |
-| 19 | A person agreed to events, has two sendable emails, none preferred and none chosen | **Not sent**; the staff are alerted |
+| 19 | A person agreed to events, has two sendable emails, none preferred and none chosen | **Not sent** (the alert list for the staff comes in slice 4) |
+| 20 | Léa is reported deceased | Out of **every** list; 5 active people instead of 6 |
+| 21 | A removed person still has a consent and a valid email (a bad removal) | Never a recipient |
+| 22 | A consent typed with a future date (2062 instead of 2026) | **Refused by the database** |
 
 ---
 

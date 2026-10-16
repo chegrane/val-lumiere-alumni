@@ -38,9 +38,9 @@
 -- contact (all emails): person, label, value, preferred, status
 --   Léa,    personal,   lea.fortin@courriel.example,          yes, valid
 --   Léa,    university, lea.fortin@etu.val-lumiere.example,   no,  obsolete
---   Robert, personal,   robert.lavoie@courriel.example,       yes, valid
+--   Robert, personal,   robert.lavoie@courriel.example,       yes, unknown   <- from a phone call, never checked
 --   Sophie, personal,   sophie.roy@courriel.example,          no,  bounced
---   Karim,  personal,   karim.haddad@courriel.example,        yes, unknown
+--   Karim,  personal,   karim.haddad@courriel.example,        yes, valid     <- his unsubscribe click proves delivery
 --   Nadia,  work,       nadia.belkacem@genie-conseil.example, yes, valid
 --   (Gérard: no contact)
 --
@@ -131,16 +131,17 @@ WHERE pe.student_number = 'VL2003027' AND f.name = 'Civil engineering';
 -- Contacts
 -- =====================================================================
 -- Léa: personal email valid (preferred), university email obsolete (she stopped reading it).
--- Robert: valid. Sophie: her only email bounced (so it cannot be preferred).
--- Karim: never checked ('unknown'). Nadia: work email valid. Gérard: none.
+-- Robert: given by phone, never checked ('unknown'). Sophie: her only email bounced (so it cannot
+-- be preferred). Karim: valid (he clicked an unsubscribe link in a newsletter: it was delivered).
+-- Nadia: work email valid. Gérard: none.
 INSERT INTO contact (person_id, kind, label, value, is_preferred, status, last_checked_on, source)
 SELECT pe.person_id, 'email', c.label, c.value, c.preferred, c.status, c.checked, c.source
 FROM (VALUES
     ('VL2024015', 'personal',   'lea.fortin@courriel.example',             true,  'valid',    DATE '2025-01-10', 'email from the person'),
     ('VL2024015', 'university', 'lea.fortin@etu.val-lumiere.example',      false, 'obsolete', NULL,              'registrar'),
-    ('VL1995010', 'personal',   'robert.lavoie@courriel.example',          true,  'valid',    DATE '2024-04-02', 'phone call'),
+    ('VL1995010', 'personal',   'robert.lavoie@courriel.example',          true,  'unknown',  NULL,              'phone call'),
     ('VL2009033', 'personal',   'sophie.roy@courriel.example',             false, 'bounced',  NULL,              'email from the person'),
-    ('VL1998042', 'personal',   'karim.haddad@courriel.example',           true,  'unknown',  NULL,              'phone call'),
+    ('VL1998042', 'personal',   'karim.haddad@courriel.example',           true,  'valid',    DATE '2026-03-02', 'phone call'),
     ('VL2003027', 'work',       'nadia.belkacem@genie-conseil.example',    true,  'valid',    DATE '2025-09-01', 'email from the person')
 ) AS c(student_number, label, value, preferred, status, checked, source)
 JOIN person pe ON pe.student_number = c.student_number;
@@ -156,8 +157,11 @@ SELECT 'Newsletter sign-ups 2019', purpose_id, '2019-06-01 09:00 America/Montrea
        'Sign-up forms 2019, archive box 12', '2019-06-03', 'privacy officer'
 FROM contact_purpose WHERE name = 'newsletter';
 
-INSERT INTO consent (person_id, purpose_id, granted, channel, entry, source_list_id, recorded_by)
-SELECT pe.person_id, sl.purpose_id, true, 'unknown', 'file import', sl.source_list_id, 'import 2019'
+-- recorded_at is given explicitly everywhere: the moment it was really recorded, not the
+-- moment this file is loaded (otherwise the 2019 list would look recorded in 2026).
+INSERT INTO consent (person_id, purpose_id, granted, channel, entry, source_list_id, recorded_by, recorded_at)
+SELECT pe.person_id, sl.purpose_id, true, 'unknown', 'file import', sl.source_list_id, 'import 2019',
+       '2019-06-01 10:00 America/Montreal'
 FROM person pe, source_list sl
 WHERE pe.student_number = 'VL1995010' AND sl.name = 'Newsletter sign-ups 2019';
 
@@ -166,16 +170,18 @@ INSERT INTO request (person_id, type, received_on, channel, handled_on, outcome,
 SELECT person_id, 'stop', '2024-05-10', 'phone', '2024-05-10', 'done', 'newsletter manager'
 FROM person WHERE student_number = 'VL1995010';
 
-INSERT INTO consent (person_id, purpose_id, granted, given_on, channel, entry, recorded_by, request_id)
-SELECT pe.person_id, cp.purpose_id, false, '2024-05-10', 'phone', 'staff', 'newsletter manager', r.request_id
+INSERT INTO consent (person_id, purpose_id, granted, given_on, channel, entry, recorded_by, request_id, recorded_at)
+SELECT pe.person_id, cp.purpose_id, false, '2024-05-10', 'phone', 'staff', 'newsletter manager', r.request_id,
+       '2024-05-10 11:00 America/Montreal'
 FROM person pe
 JOIN request r ON r.person_id = pe.person_id AND r.type = 'stop'
 CROSS JOIN contact_purpose cp            -- one row per kind of contact: newsletter, events, offers
 WHERE pe.student_number = 'VL1995010';
 
 -- The person's own choices, typed by the staff or sent by the mailing system.
-INSERT INTO consent (person_id, purpose_id, granted, given_on, channel, entry, recorded_by)
-SELECT pe.person_id, cp.purpose_id, a.granted, a.given_on, a.channel, a.entry, a.recorded_by
+INSERT INTO consent (person_id, purpose_id, granted, given_on, channel, entry, recorded_by, recorded_at)
+SELECT pe.person_id, cp.purpose_id, a.granted, a.given_on, a.channel, a.entry, a.recorded_by,
+       a.given_on + time '11:00'                -- recorded the same day, at 11:00
 FROM (VALUES
     ('VL2024015', 'newsletter',        true,  DATE '2025-01-10', 'email',            'staff',          'newsletter manager'),
     ('VL2024015', 'events',            true,  DATE '2025-01-10', 'email',            'staff',          'events coordinator'),
