@@ -16,6 +16,8 @@ A personal project by **Ibrahim Chegrane**, built with two AI assistants, each w
 
 **My part:** every decision (30 so far, each recorded with its reason and the option rejected, in [DECISIONS.md](DECISIONS.md)); the story and the requirements; reading, questioning and accepting every file; running the database and the tests myself. **The rule:** nothing goes in until I understand it and can explain it.
 
+**How we worked: slowly, hands-on first.** The project was built step by step, not generated in one go. For each part, I first thought it through myself, then we discussed it: in the model, the "first idea" behind each choice is usually mine, followed by the problem it causes and the solution kept. I created and broke the first table by hand in `psql`, wrote a first version of two tables (`person`, `degree`) before Claude completed them, ran every command of the setup, the database and the tests myself, and answered short quizzes to check that I could explain the main choices without notes. Claude wrote most of the final SQL and the tests; I read, questioned and accepted each file.
+
 Commits written with Claude carry the line `Co-Authored-By: Claude`.
 
 ## Documents
