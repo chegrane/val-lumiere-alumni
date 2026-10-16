@@ -38,12 +38,17 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 - [ ] Write SQL tests from the cast and the 19 edge cases of `docs/queries.md`
 - [ ] Write the schema's negative tests: each constraint and trigger refuses its bad row (18 cases tried by hand on 2026-10-14), **including the NULL trap**: an open request with a reason must be refused; a refused request without a reason too
 
-**Slice 3 — Dirty data**
+**Before the interview (26th)**
+- [ ] Read Québec privacy law for about an hour (CAI guides): consent (specific, informed, per purpose), access and correction rights, the person in charge, incident reporting
+
+**Slice 3 — Dirty data** (Oct 20–22)
+- [ ] Our own generator, not Kaggle: Faker fr_CA, CSV files, deliberate defects **with ground truth** (the generator knows which records are the same person), so cleaning can be measured
 - [ ] Python virtual environment; install Faker, pandas, psycopg 3
 - [ ] `data/generate.py`
 
 **Slice 4 — Data quality**
 - [ ] `quality/clean.py`, duplicate detection, `quality/report.md`
+- [ ] Also test the duplicate detection on a standard benchmark with ground truth (FEBRL, from the Python library `recordlinkage`)
 
 **Slice 5 — Respect for people**
 - [ ] Consent, retention, deletion or anonymisation, access roles
@@ -52,6 +57,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 - [ ] Check the legal statements in `docs/story.md` (access, correction, removal, responsibility, deadlines) against the Access Act on LégisQuébec
 - [ ] Licences: decide MIT for the code and **CC BY 4.0 for the texts** (story, model, queries, tutorial: anyone who reuses them must credit Ibrahim by name); add `LICENSE` (and `LICENSE-docs` if CC BY)
 - [ ] Name the skill: **requirements analysis** (README and the story's subtitle)
+- [ ] README, short "Related work" (2–3 lines): similar open-source alumni systems found **after** designing the model, for comparison; no code reused; what is different here (consent history, data quality, Québec law)
 - [ ] `README.fr.md`
 - [ ] Reread everything; make the repository public
 
