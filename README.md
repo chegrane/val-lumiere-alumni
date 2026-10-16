@@ -18,13 +18,21 @@ An educational, open-source project: designing and building the alumni database 
 
 ## Setup
 
-Requirements: **PostgreSQL** (tested with 18.6) and **Git**. On Windows, use Ubuntu under **WSL2** first.
+Requirements: **PostgreSQL** (tested with 18.6), **Git** and **Python 3** (tested with 3.14). On Windows, use Ubuntu under **WSL2** first.
 
 ```bash
 sudo apt install -y postgresql                       # Ubuntu / Debian
 sudo -u postgres createuser --createdb "$USER"       # your own role, no password (peer authentication)
 createdb val_lumiere_alumni                          # the project database
 git clone https://github.com/chegrane/val-lumiere-alumni.git ~/projects/val-lumiere-alumni
+```
+
+Then, from the project folder:
+
+```bash
+scripts/reset_db.sh                                  # build the database: schema, views, test data
+python3 -m venv .venv && source .venv/bin/activate   # a private Python environment
+pip install -r requirements.txt                      # pytest and psycopg
 ```
 
 New to Linux, PostgreSQL or WSL? Follow the **[step-by-step tutorial](docs/setup.md)**: every command explained.

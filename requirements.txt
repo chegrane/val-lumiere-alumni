@@ -1,0 +1,7 @@
+# Python libraries for this project. Install them in the project's virtual environment:
+#   python3 -m venv .venv
+#   source .venv/bin/activate
+#   pip install -r requirements.txt
+
+pytest>=8              # runs the automatic tests (tests/)
+psycopg[binary]>=3.2   # talks to PostgreSQL from Python (version 3, not psycopg2)

@@ -353,3 +353,87 @@ git push -u origin main
 3. The bottom-left corner shows **WSL: Ubuntu**; the terminal (`` Ctrl+` ``) runs in Ubuntu.
 
 If VS Code misbehaves the first time, close it and open it again.
+
+---
+
+## Part 7 — Build the database and prepare Python
+
+### Step 13 — Build the database in one command
+
+From the project folder:
+
+```bash
+scripts/reset_db.sh
+```
+
+It deletes the database `val_lumiere_alumni`, recreates it, and runs the three SQL files in order: the schema, the views, the test data ([sql/README.md](../sql/README.md)). **You should see:** three `== sql/0…` lines, then `Database val_lumiere_alumni rebuilt.`
+
+> If you see `Permission denied`, the script lost its execute permission: `chmod +x scripts/reset_db.sh`.
+
+### Step 14 — A virtual environment for Python
+
+**Why:** each project gets its **own private folder of libraries** (`.venv`), separate from the system's Python. Its versions disturb nothing else, and anyone can rebuild the same environment from `requirements.txt`.
+
+```bash
+sudo apt install -y python3-venv
+```
+
+```bash
+python3 -m venv .venv
+```
+
+| Word | Meaning |
+|---|---|
+| `python3 -m venv` | Run Python's `venv` **m**odule |
+| `.venv` | The folder to create. Hidden (the `.`), and excluded from Git by `.gitignore` |
+
+```bash
+source .venv/bin/activate
+```
+
+| Word | Meaning |
+|---|---|
+| `source` | Run a file **inside the current shell** (a shell built-in, because it must change this shell) |
+| `.venv/bin/activate` | Switches `python` and `pip` to the project's own |
+
+**You should see:** `(.venv)` at the start of the prompt. Each new terminal starts without it: run `source` again. `deactivate` leaves it.
+
+### Step 15 — Install the libraries
+
+```bash
+pip install -r requirements.txt
+```
+
+`pip` installs every library listed in [requirements.txt](../requirements.txt):
+
+| Library | Role |
+|---|---|
+| `pytest` | Runs the automatic tests |
+| `psycopg[binary]` | The **driver** that connects Python to PostgreSQL |
+
+**Check:**
+
+```bash
+python -c "import psycopg, pytest; print(psycopg.__version__, pytest.__version__)"
+```
+
+**You should see:** two version numbers (tested with psycopg 3.3.6 and pytest 9.1.1).
+
+### What is a database driver?
+
+Every language uses a **driver** to talk to a database: JDBC in Java, ADO.NET in C#, **psycopg** in Python. It opens a connection, sends the SQL text, receives the rows, and converts the types (a PostgreSQL `date` becomes a Python `date`, `NULL` becomes `None`).
+
+psycopg relies on **libpq**, PostgreSQL's official C library (the one `psql` uses). `psycopg[binary]` ships it **already compiled**, so nothing else needs to be installed.
+
+A first connection, to try in `python`:
+
+```python
+import psycopg
+conn = psycopg.connect("dbname=val_lumiere_alumni")    # no password: peer authentication
+cur = conn.cursor()
+cur.execute("SELECT first_name, last_name FROM person WHERE student_number = %s", ("VL1998042",))
+print(cur.fetchone())                                   # ('Karim', 'Haddad')
+conn.close()
+```
+
+**The value travels separately from the SQL text** (`%s`, then the value). This is a **parameterized query**, the protection against SQL injection: a value is never pasted into the SQL string.
