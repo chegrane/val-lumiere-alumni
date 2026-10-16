@@ -12,7 +12,7 @@ An educational, open-source project: designing and building the alumni database 
 A personal project by **Ibrahim Chegrane**, built with two AI assistants, each with a clear role:
 
 - **Claude** (Anthropic, model Claude Opus 5.5, in Claude Code): discussing and brainstorming the model; step-by-step tutorials for the technical parts (Linux, PostgreSQL, Git, Python); first drafts of the documents, SQL and tests; running the checks; and a strict reviewer agent at each milestone.
-- **ChatGPT** (OpenAI): an outside review at each milestone (a different viewpoint, which caught errors the other missed), and editing of the texts.
+- **ChatGPT** (OpenAI, model GPT-6 Luna): an outside review at each milestone (a different viewpoint, which caught errors the other missed), and editing of the texts.
 
 **My part:** every decision (30 so far, each recorded with its reason and the option rejected, in [DECISIONS.md](DECISIONS.md)); the story and the requirements; reading, questioning and accepting every file; running the database and the tests myself. **The rule:** nothing goes in until I understand it and can explain it.
 
