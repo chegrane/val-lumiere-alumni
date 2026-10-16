@@ -5,8 +5,7 @@
 
 An educational, open-source project: designing and building the alumni database of a fictional institution, with a strong focus on **data modelling**, **data quality** (cleaning, duplicate detection) and **respect for personal information**.
 
-
-**Status:** work in progress. The story and the data model are written; the SQL schema comes next ([roadmap](ROADMAP.md)).
+**Status:** work in progress. Done: the story (requirements analysis), the data model, the PostgreSQL schema with its views, and 85 automatic tests (slices 0 to 2). Next: synthetic data with deliberate defects, then cleaning and duplicate detection ([roadmap](ROADMAP.md)).
 
 ## How this project was built
 
