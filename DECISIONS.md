@@ -190,7 +190,12 @@ Newest entries at the bottom.
 - **Why:** each rule enforced by the strongest tool that can see it (lesson 9), and every rule proven by a test that must pass and one that must be refused (lesson 21).
 - **Rejected:** an ORM (hides the SQL the project is meant to show); `serial` (older than identity columns); `varchar(n)` with arbitrary limits; testing by hand only.
 
+### D-030 — Licences: MIT for the code, CC BY 4.0 for the documentation (2026-10-15)
+- **Choice:** the code (`sql/`, `scripts/`, `tests/`, comments included) under MIT; the documentation (`docs/`, `README.md`, `README.fr.md`) under CC BY 4.0. The licence of a file depends on where it is.
+- **Why:** the project is also a course: anyone may reuse and adapt the explanations, including commercially, but must credit the author by name. MIT is the simplest licence for the code.
+- **Accepted:** CC BY 4.0 allows commercial reuse (for example in a paid course), and cannot be withdrawn from those who respect it.
+- **Rejected:** one licence for everything (MIT is not designed for prose; CC BY is not recommended for code); a non-commercial licence (CC BY-NC: less reuse, and not an open licence).
+
 ## Open questions
 
 - **Sort order of French names:** the database uses the default `C.UTF-8` collation, which sorts `Émilie` after `Zoé`. Decide in slice 2 whether to use a French (Canada) collation.
-- **Licence:** MIT proposed, to confirm before going public.

@@ -58,7 +58,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 
 **Before going public**
 - [ ] Check the legal statements in `docs/story.md` (access, correction, removal, responsibility, deadlines) against the Access Act on LégisQuébec
-- [ ] Licences: decide MIT for the code and **CC BY 4.0 for the texts** (story, model, queries, tutorial: anyone who reuses them must credit Ibrahim by name); add `LICENSE` (and `LICENSE-docs` if CC BY)
+- [x] Licences: MIT for the code, CC BY 4.0 for the documentation (`LICENSE`, `LICENSE-DOCS`, D-030)
 - [ ] Name the skill: **requirements analysis** (README and the story's subtitle)
 - [ ] README, short "Related work" (2–3 lines): similar open-source alumni systems found **after** designing the model, for comparison; no code reused; what is different here (consent history, data quality, Québec law)
 - [ ] `README.fr.md`

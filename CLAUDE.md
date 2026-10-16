@@ -32,7 +32,7 @@ An **educational, open-source** project: the alumni database of a **fictional** 
 | Diagrams | **Mermaid** in Markdown files |
 | Languages | **English** for code and documents; **`README.fr.md`** with a full French summary; a French–English **glossary** (`docs/glossary.md`); fake data in **Canadian French** (Québec names, addresses, postal codes). Full translations only at milestones |
 | Data | **Synthetic only.** Never a real name or real data |
-| Licence | MIT (proposed, to confirm) |
+| Licence | MIT for the code, CC BY 4.0 for the documentation (D-030) |
 
 ## 4. How to work with Ibrahim
 

@@ -38,4 +38,9 @@ pytest                                               # run the tests
 
 New to Linux, PostgreSQL or WSL? Follow the **[step-by-step tutorial](docs/setup.md)**: every command explained.
 
+## Licence
+
+- **Code** (`sql/`, `scripts/`, `tests/`, including the comments in those files): [MIT](LICENSE).
+- **Documentation** (`docs/`, `README.md`, `README.fr.md`): [CC BY 4.0](LICENSE-DOCS). You may reuse and adapt it, including commercially, if you credit **Ibrahim Chegrane, val-lumiere-alumni**, link to the licence, and say what you changed.
+
 *Version française : `README.fr.md` (à venir).*

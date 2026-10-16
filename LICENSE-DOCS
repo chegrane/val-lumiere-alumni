@@ -1,0 +1,18 @@
+The documentation of val-lumiere-alumni
+(the files in docs/, README.md and README.fr.md)
+is © 2026 Ibrahim Chegrane, licensed under the
+Creative Commons Attribution 4.0 International License (CC BY 4.0).
+
+You may copy, translate, adapt and redistribute it, including commercially,
+provided that you:
+  - credit the author: Ibrahim Chegrane, val-lumiere-alumni;
+  - give a link to the licence;
+  - indicate if you made changes.
+
+Summary of the licence: https://creativecommons.org/licenses/by/4.0/
+Full legal text:        https://creativecommons.org/licenses/by/4.0/legalcode
+
+The code (sql/, scripts/, tests/, and the comments inside those files)
+is under the MIT License: see LICENSE.
+
+Université de Val-Lumière is a fictional institution; all names and data are synthetic.
