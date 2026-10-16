@@ -5,9 +5,19 @@
 
 An educational, open-source project: designing and building the alumni database of a fictional institution, with a strong focus on **data modelling**, **data quality** (cleaning, duplicate detection) and **respect for personal information**.
 
-**About this project.** A personal project by Ibrahim Chegrane, built with help from two AI assistants: **Claude** (design discussions, code, first drafts) and **ChatGPT** (outside review, editing of the texts). Every design decision is his, and is recorded with its reason in [DECISIONS.md](DECISIONS.md).
 
 **Status:** work in progress. The story and the data model are written; the SQL schema comes next ([roadmap](ROADMAP.md)).
+
+## How this project was built
+
+A personal project by **Ibrahim Chegrane**, built with two AI assistants, each with a clear role:
+
+- **Claude** (Anthropic, model Claude Opus 5.5, in Claude Code): discussing and brainstorming the model; step-by-step tutorials for the technical parts (Linux, PostgreSQL, Git, Python); first drafts of the documents, SQL and tests; running the checks; and a strict reviewer agent at each milestone.
+- **ChatGPT** (OpenAI): an outside review at each milestone (a different viewpoint, which caught errors the other missed), and editing of the texts.
+
+**My part:** every decision (30 so far, each recorded with its reason and the option rejected, in [DECISIONS.md](DECISIONS.md)); the story and the requirements; reading, questioning and accepting every file; running the database and the tests myself. **The rule:** nothing goes in until I understand it and can explain it.
+
+Commits written with Claude carry the line `Co-Authored-By: Claude`.
 
 ## Documents
 
