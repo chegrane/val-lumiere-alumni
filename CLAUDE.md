@@ -5,7 +5,7 @@ Claude has no memory between sessions: everything that must last is in this repo
 
 ## 1. Read before answering
 
-1. `private/contexte_emploi.md` — **why** this project exists (short-term goal, deadlines). Private, in French, never published.
+1. `private/contexte_emploi.md` — personal context. Private, in French, never published.
 2. `private/projet_diplomes_brief.md` — the story, the slices, the first entities, the five modelling questions, the long-term vision, the decisions on name and language (French).
 3. `private/choix_techniques.md` — the technical choices **with their reasons** and the rejected options, including the comparison of database systems (French).
 4. `TASKS_TODO.md` — **the current objective** and everything waiting (bugs, ideas, next steps). `ROADMAP.md` — the big picture.
@@ -15,7 +15,7 @@ If `private/` is missing (for example on another machine), ask Ibrahim for it be
 
 ## 2. The goal in one paragraph
 
-An **educational, open-source** project: the alumni database of a **fictional** institution, Université de Val-Lumière (it could equally be a CEGEP or any school). The short-term goal is a clean, public, runnable repository that demonstrates **data modelling, data quality and respect for personal information** — the core of the jobs Ibrahim is applying for (details in `private/contexte_emploi.md`). Long term, the project may grow into back end, front end and community features; those come later.
+An **educational, open-source** project: the alumni database of a **fictional** institution, Université de Val-Lumière (it could equally be a CEGEP or any school). The short-term goal is a clean, public, runnable repository that demonstrates **data modelling, data quality and respect for personal information** — a personal learning project in database design and data quality. Long term, the project may grow into back end, front end and community features; those come later.
 
 ## 3. Decisions already taken (do not reopen without Ibrahim)
 

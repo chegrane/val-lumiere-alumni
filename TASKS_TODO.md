@@ -38,7 +38,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 - [x] Tests (`pytest`): the expected results on the test data and the edge cases of `docs/queries.md` (2 skipped until slice 3)
 - [x] The schema's refusal tests: 26 rows that must be refused (by the right rule), 5 that must be accepted, including the NULL trap
 
-**Before the interview (26th)**
+**Before October 26**
 - [ ] Read Québec privacy law for about an hour (CAI guides): consent (specific, informed, per purpose), access and correction rights, the person in charge, incident reporting
 
 **Slice 3 — Dirty data** (Oct 20–22)
