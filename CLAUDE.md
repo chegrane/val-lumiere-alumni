@@ -5,7 +5,7 @@ Claude has no memory between sessions: everything that must last is in this repo
 
 ## 1. Read before answering
 
-1. `private/contexte_emploi.md` — personal context. Private, in French, never published.
+1. `private/contexte_personnel.md` — personal context. Private, in French, never published.
 2. `private/projet_diplomes_brief.md` — the story, the slices, the first entities, the five modelling questions, the long-term vision, the decisions on name and language (French).
 3. `private/choix_techniques.md` — the technical choices **with their reasons** and the rejected options, including the comparison of database systems (French).
 4. `TASKS_TODO.md` — **the current objective** and everything waiting (bugs, ideas, next steps). `ROADMAP.md` — the big picture.
