@@ -45,7 +45,19 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 - [ ] Our own generator, not Kaggle: Faker fr_CA, CSV files, deliberate defects **with ground truth** (the generator knows which records are the same person), so cleaning can be measured
 - [x] Python virtual environment, `requirements.txt` (pytest, psycopg 3); Faker and pandas to add
 - [ ] Un-skip tests 13 and 14 of `tests/test_rules.py` (staging row never in a list; new degree for a listed number ignored)
-- [ ] `data/generate.py`
+- [x] Design notes: [docs/dataset/white_paper.md](docs/dataset/white_paper.md), draft v0 (D-031)
+- [ ] Download the source tables (ISQ last names, Retraite Québec first names) and store them with origin and date
+- [ ] `data/generate.py`, **version 1 only** (white paper, section 8): Québec names, degrees, registrar + 2–3 faculty files + newsletter, typos and main variants, ground truth, seed
+- [ ] Decide: keyboard layout (Canadian French or QWERTY); defect rates; older first names (before 1980)
+- [ ] Verify the references marked "to verify" in the white paper (Damerau, Pollock–Zamora, NANPA rule)
+
+**Dataset backlog** (only after version 1 is used by slice 4; one line per idea)
+- International students: shares by level and year (ISQ, BCI), countries of origin (Portrait statistique), transliteration variants
+- Encoding errors (mojibake), every date and phone format
+- Reunion list, mailing-system events (bounces, unsubscribes)
+- French phonetic variants; Canadian French keyboard
+- 60,000-person version; fairness measures by group of names
+- Its own GitHub repository, version numbers, data licence, "how to cite"; possible publication
 
 **Slice 4 — Data quality**
 - [ ] `quality/clean.py`, duplicate detection, `quality/report.md`
