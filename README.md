@@ -26,7 +26,7 @@ Commits written with Claude carry the line `Co-Authored-By: Claude`.
 - [The model](docs/model.md): what we store, and how the rules are enforced.
 - [The queries](docs/queries.md): how each question of the story becomes SQL, with small examples.
 - [Traps and lessons](docs/lessons.md): the mistakes we really made, and what they teach.
-- [The dataset, design notes](docs/dataset/white_paper.md) *(draft)*: how the synthetic data will be generated, and why.
+- **The dataset**: the synthetic records with deliberate defects are designed and generated in a separate repository, `val-lumiere-graduates`, to be published with its version 1. This project will clean and import a pinned release of it.
 
 ## Setup
 

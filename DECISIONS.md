@@ -201,6 +201,11 @@ Newest entries at the bottom.
 - **Why:** public datasets do not fit the model and have no ground truth, so cleaning could not be measured; official sources make the data credible; the backlog keeps the main project moving (the module rule, D-004).
 - **Rejected:** Kaggle datasets (wrong model, no ground truth, unclear origin); uniform random errors (blind to what people really type); the reserved 555-01xx numbers (only 500 for thousands of people: shared numbers would create false duplicates).
 
+### D-032 — The dataset moves to its own repository now (2026-10-21)
+- **Choice:** the white paper v0.4, its checker and its test move to a new private repository, `val-lumiere-graduates` (its D-001), before any generator code is written. This project keeps the database and consumes a pinned release of the dataset (version and SHA-256 in `dataset.lock`). The paper's history stays here, up to `38c883d`.
+- **Why:** the generator has become a product of its own (versions, sources, licences, tests, users); mixed with the database, it would confuse visitors. Moving before the code exists is cheap. This brings forward the "later" of D-031.
+- **Rejected:** waiting until slice 4 uses version 1 (D-031); a Git submodule; copying the dataset files into this repository.
+
 ## Open questions
 
 - **Sort order of French names:** the database uses the default `C.UTF-8` collation, which sorts `Émilie` after `Zoé`. Decide in slice 2 whether to use a French (Canada) collation.

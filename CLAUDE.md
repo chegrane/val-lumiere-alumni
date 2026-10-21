@@ -63,13 +63,14 @@ An **educational, open-source** project: the alumni database of a **fictional** 
 **See `TASKS_TODO.md`, section "Now".** It is the only place where the plan lives; do not repeat it here.
 - A bug, an idea or a question comes up mid-task: add one dated line to its **Inbox**, then continue the current objective.
 - When the objective is done: help Ibrahim sort the Inbox, update **Done** and `ROADMAP.md`.
+- The synthetic dataset and its generator live in the sister repository `../val-lumiere-graduates` (D-032), with its own `CLAUDE.md`. This project consumes a pinned release of it.
 
 Proposed repository layout (to create as needed, not all at once):
 ```
 README.md   README.fr.md   DECISIONS.md   CLAUDE.md   .gitignore
 docs/       story.md, model.md, glossary.md
 sql/        schema.sql
-data/       generate.py
+data/       the pinned dataset release, downloaded (ignored by Git)
 quality/    clean.py, report.md
 private/    (ignored by Git)
 ```

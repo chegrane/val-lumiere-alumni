@@ -41,23 +41,12 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 **Before October 26**
 - [ ] Read Québec privacy law for about an hour (CAI guides): consent (specific, informed, per purpose), access and correction rights, the person in charge, incident reporting
 
-**Slice 3 — Dirty data** (Oct 20–22)
-- [ ] Our own generator, not Kaggle: Faker fr_CA, CSV files, deliberate defects **with ground truth** (the generator knows which records are the same person), so cleaning can be measured
-- [x] Python virtual environment, `requirements.txt` (pytest, psycopg 3); Faker and pandas to add
+**Slice 3 — Dirty data** (the dataset now lives in its own repository, `val-lumiere-graduates`, D-032)
+- [x] Python virtual environment, `requirements.txt` (pytest, psycopg 3)
+- [x] Dataset design: white paper v0.4 and its checker (`38c883d`), moved to `val-lumiere-graduates` (D-032)
+- [ ] Generator version 1: in `val-lumiere-graduates` (its `TASKS_TODO.md` holds the plan and the dataset backlog)
+- [ ] `dataset.lock` (release version and SHA-256) and a script that downloads exactly that release into `data/` (ignored by Git)
 - [ ] Un-skip tests 13 and 14 of `tests/test_rules.py` (staging row never in a list; new degree for a listed number ignored)
-- [x] Design notes: [docs/dataset/white_paper.md](docs/dataset/white_paper.md), v0.4 design proposal (D-031), mechanical checks in `scripts/check_white_paper.py` (9 tests)
-- [ ] Download the source tables (ISQ last names, Retraite Québec first names) and store them with origin and date
-- [ ] `data/generate.py`, **version 1 only** (white paper, section 8): Québec names, degrees, registrar + 2–3 faculty files + newsletter, typos and main variants, ground truth, seed
-- [ ] Decide: keyboard layout (Canadian French or QWERTY); defect rates; older first names (before 1980)
-- [ ] Verify the references marked "to verify" in the white paper (Damerau, Pollock–Zamora, NANPA rule)
-
-**Dataset backlog** (only after version 1 is used by slice 4; one line per idea)
-- International students: shares by level and year (ISQ, BCI), countries of origin (Portrait statistique), transliteration variants
-- Encoding errors (mojibake), every date and phone format
-- Reunion list, mailing-system events (bounces, unsubscribes)
-- French phonetic variants; Canadian French keyboard
-- 60,000-person version; fairness measures by group of names
-- Its own GitHub repository, version numbers, data licence, "how to cite"; possible publication
 
 **Slice 4 — Data quality**
 - [ ] `quality/clean.py`, duplicate detection, `quality/report.md`
