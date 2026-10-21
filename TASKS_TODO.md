@@ -45,7 +45,7 @@ The big picture is in [ROADMAP.md](ROADMAP.md).
 - [ ] Our own generator, not Kaggle: Faker fr_CA, CSV files, deliberate defects **with ground truth** (the generator knows which records are the same person), so cleaning can be measured
 - [x] Python virtual environment, `requirements.txt` (pytest, psycopg 3); Faker and pandas to add
 - [ ] Un-skip tests 13 and 14 of `tests/test_rules.py` (staging row never in a list; new degree for a listed number ignored)
-- [x] Design notes: [docs/dataset/white_paper.md](docs/dataset/white_paper.md), draft v0 (D-031)
+- [x] Design notes: [docs/dataset/white_paper.md](docs/dataset/white_paper.md), v0.4 design proposal (D-031), mechanical checks in `scripts/check_white_paper.py` (9 tests)
 - [ ] Download the source tables (ISQ last names, Retraite Québec first names) and store them with origin and date
 - [ ] `data/generate.py`, **version 1 only** (white paper, section 8): Québec names, degrees, registrar + 2–3 faculty files + newsletter, typos and main variants, ground truth, seed
 - [ ] Decide: keyboard layout (Canadian French or QWERTY); defect rates; older first names (before 1980)

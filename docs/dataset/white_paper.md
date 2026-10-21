@@ -1,488 +1,427 @@
-# Val-Lumière Synthetic Alumni Records
+# Val-Lumière Graduates
 
-*A Québec benchmark for data quality and record linkage — design notes*
+*A design proposal for a synthetic Québec dataset for data quality, deduplication, and record linkage*
 
-**Draft v0.2 — October 21, 2026.** Ibrahim Chegrane, written with Claude (Anthropic) from our design discussions. **Not yet built:** this document describes what will be generated and why. Every number below is a **proposal** until the generator exists and the choice is recorded in [DECISIONS.md](../../DECISIONS.md).
+**Author:** Ibrahim Chegrane  
+**Version:** 0.4 — 21 October 2026  
+**Status:** Design proposal. The generator has not yet been implemented; every parameter below is a proposal until it has been implemented, measured on the output, and recorded.
 
-> **Fictional data.** Université de Val-Lumière does not exist. The generator invents every person. It uses public statistics (name frequencies, shares of international students) only as **proportions**, never as records about real people. Any resemblance to a real person is a coincidence of common names.
+> **Synthetic-data notice.** Université de Val-Lumière is an invented setting, not a representation of a real university. The planned generator will create records synthetically; it will not copy records about real people. Public statistics guide aggregate distributions only, never individual records. Common names and plausible birth dates may coincidentally resemble those of real people. Contact details are non-real by construction: email addresses use the reserved `.example` domain, and telephone numbers use an exchange pattern that the North American Numbering Plan never assigns.
 
----
+## Abstract
 
-## 0. At a glance
+This document proposes a reproducible generator for synthetic records of the graduates of a fictional Québec university. The generator will produce a clean person register, degree records, and source-specific copies of the same people resembling the files an alumni office receives from faculties and mailing lists. Those copies will contain configurable, labelled defects: missing identifiers, spelling variants, format differences, and duplicate records. Separate ground-truth files will identify the fictional person behind each record and every defect deliberately introduced, so that linkage and data-quality methods can be evaluated rather than merely demonstrated. Public Québec statistics inform the name distributions where their coverage is suitable, and the documentation distinguishes sourced distributions from approximations. The outputs are intended for teaching, for testing tools before they touch real files, and, once baselines exist, for comparing methods.
 
-| | |
-|---|---|
-| **What** | Synthetic alumni records of a fictional Québec university: a clean registrar file, and messy copies of the same people in the files an alumni office really receives (faculty spreadsheets, a newsletter list…) |
-| **The key feature** | A hidden **ground truth**: for every messy row, which true person it is, and which errors were introduced. Cleaning and matching can therefore be **measured** |
-| **What is realistic** | Last and first names drawn from **official Québec statistics**; a share of international students by level of study; errors modelled on **published research** and on what real files contain (accents, hyphens, initials, typos on neighbouring keys…) |
-| **What it is for** | Learning and teaching data cleaning; testing duplicate detection and record linkage on French and Québec names; measuring whether matching works equally well for every group of names |
-| **Sizes** | 2,000, 20,000 or 60,000 people; reproducible from a seed |
-| **Safe by construction** | No real person, no real email domain, no telephone number that can exist |
-| **Status** | Design notes. Version 1 of the generator is next |
+**Keywords:** synthetic data; data quality; record linkage; entity resolution; deduplication; Québec French; ground truth; reproducibility.
 
----
+## 1. Introduction and scope
 
-## 1. Why this dataset
+### 1.1 The problem
 
-### 1.1 The need
+The fictional university's alumni office has accumulated graduate records over many years. Its files come from different systems and teams: a registrar's export, faculty spreadsheets, newsletter lists. They differ in structure and quality. They may omit student numbers, use local program names, spell names differently, store names in different orders, or contain outdated contact details. The same person may appear several times, while two different people may have very similar names.
 
-The project [val-lumiere-alumni](../../README.md) builds the alumni database of a fictional university. Its [story](../story.md) starts from a real kind of mess: thirty years of faculty spreadsheets, a newsletter list, a reunion list, the same person two or three times under different spellings, a third of the emails dead. The database is ready. The next question is the one the story's Director really asks: **can we clean this mess, and prove how well we did?**
+A database can store the cleaned result, but it cannot by itself demonstrate that the cleaning and matching were accurate. To measure accuracy, an evaluator needs to know, before applying a method, which records represent the same underlying person. This proposal therefore pairs synthetic source records with a separate, generated ground truth.
 
-To answer it, we need messy data. And to *prove* anything, we need to know the **right answer**: which rows really are the same person.
+### 1.2 Terminology and boundaries
 
-### 1.2 Why not real data
+A **university graduate** is a person who has completed at least one university degree. The term does not mean a *graduate student* currently enrolled in master's or doctoral studies. People who attended the university but left without a degree are outside the initial scope. The word *alumni* is sometimes understood more broadly; the subtitle and this definition make the intended population explicit.
 
-Real alumni records are personal information. In Québec, their use is framed by the law on the protection of personal information (often called "Law 25" after the 2021 reform). A public, educational project cannot use them, and should not try.
+A **dataset** is the collection of records made available for use. A **benchmark** requires more: defined tasks, ground-truth labels, evaluation metrics, a reproducible protocol, and reference results. The generator is intended to produce a dataset that can support such a benchmark; it becomes one only once those elements exist and have been validated (section 13).
 
-### 1.3 Why not an existing public dataset
+Version 1 focuses on linking and deduplicating person records across sources. Degrees support matching but are modelled separately, because one person can earn more than one degree. Every generated person has one row in the canonical register; records with no counterpart in the register are a separate evaluation case, planned as an option (section 10.1).
 
-We looked at public datasets of students (on Kaggle) and at open-source alumni systems (on GitHub). They are useful for inspiration, but none fits:
+The documentation follows the questions of *Datasheets for Datasets*, a widely cited framework for documenting a dataset's motivation, composition, collection process, intended uses and maintenance [1].
 
-| Need | Public student datasets | What we need |
-|---|---|---|
-| Matches an alumni office (degrees, contacts, lists from several sources) | No: grades, finances, generic fields | Yes |
-| Québec context (names, French, accents, area codes) | No | Yes |
-| **Ground truth** (which rows are the same person) | **No** | **Yes**: without it, cleaning cannot be measured |
-| Clear origin and licence | Varies | Yes |
+### 1.3 Intended uses
 
-Research on record linkage uses synthetic data with ground truth for the same reason (section 13). We follow its principles, adapted to French and to Québec.
+The data is intended for learning and teaching data cleaning; testing deduplication and record-linkage procedures; comparing standardisation and blocking methods; measuring defects before and after cleaning; and examining how matching difficulty varies across names and record types. Practitioners can try tools on fictional Québec-oriented data before working with real files. Its first user is the open-source database project *val-lumiere-alumni*, which loads the cleaned result into a PostgreSQL schema with consent and data-protection rules.
 
----
+The initial tasks are:
 
-## 2. Who it is for, and what it is used for
+- **Record linkage:** link a source record to the corresponding person in the canonical register.
+- **Deduplication:** identify records that represent the same person within a source and across sources.
+- **Standardisation:** normalise names, dates, telephone formats, email addresses and program labels, keeping the original values for auditability.
+- **Blocking:** reduce the number of candidate pairs while retaining true matches.
+- **Data-quality measurement:** measure missingness, formatting defects, obsolete contacts and duplicates before and after processing.
 
-| Users | Use |
-|---|---|
-| **Students and instructors** | Learn data cleaning and record linkage on realistic French data, with the answers available to check their work |
-| **Practitioners** (alumni offices, CRM administrators, data teams) | Try a deduplication tool or a cleaning procedure on Québec names before using it on real files |
-| **Researchers** | Measure matching methods on French and transliterated names, and compare results between groups of names |
-| **This project** | Slice 4 of val-lumiere-alumni: clean the files, find the duplicates, load the result into the database, and report the quality |
+## 2. Why synthetic data, and how this proposal relates to existing work
 
-**Tasks the dataset supports:**
+### 2.1 Why not real alumni records
 
-1. **Linkage:** link each messy row to the right person of the registrar file.
-2. **Deduplication:** find the rows that are the same person, inside one file and across files.
-3. **Standardisation:** clean names, dates, phones and emails into one format.
-4. **Blocking:** reduce the number of pairs to compare without losing true matches.
-5. **Data quality measurement:** count and classify defects, before and after cleaning.
+Alumni records contain personal information. Using or publishing them requires an appropriate legal basis, institutional authorisation and proportionate safeguards. A public educational project takes the safer route: it generates fictional records and uses no private alumni file as input.
 
----
+Synthetic data is not automatically realistic. Its value depends on how its distributions, source structures, errors and limitations are documented and tested. The ground truth makes it possible to evaluate a method against the generator's known answers; it does not prove that the generator captures every difficulty of a real institution.
 
-## 3. How we built it
+### 2.2 Related datasets and tools
 
-This document comes out of conversations between Ibrahim Chegrane and Claude in October 2026. The *process* matters as much as the result:
+Existing datasets and tools address parts of the problem, with different aims. The comparison below is focused, not exhaustive.
 
-1. **Start from the story**, not from the data: which files did the office really receive, from whom, in what state?
-2. **Generate the truth first**: true (fictional) people, with their degrees and contacts.
-3. **Then write messy copies** of them into several files, the way each source would really have produced them.
-4. **Corrupt with realistic errors**, not random noise. Ibrahim's starting remark: "uniform random insertions, deletions and substitutions are blind to what people really do: someone typing O hits I or P, the neighbouring keys". This is section 8.
-5. **Keep the truth aside**, in files the cleaning never reads, to measure it afterwards.
-6. **Justify every proportion** with an official source when one exists, and say so plainly when one does not.
+| Resource | Main purpose | What it shares with this proposal | Difference in scope |
+|---|---|---|---|
+| *Student Performance*, UCI [2] | Predict secondary-school performance in two Portuguese schools | A well-documented educational dataset | Designed for prediction, not for matching messy records across sources |
+| *Predict Students' Dropout and Academic Success*, UCI [3] | Classify outcomes of higher-education students | Assembled from several separate databases | Outcome prediction; no person-linkage ground truth |
+| Student tables on Kaggle [4, 5, 6] | Small tables of students' names, contact details or academic information | Student-oriented fields usable for cleaning exercises | No ground truth across sources; licences and provenance to verify case by case |
+| FEBRL and its datasets [7] | Record linkage and deduplication, with known links | A direct precedent: generated records with known matches | Different population and domain; not Québec French names or alumni-office files |
+| GeCo [8] | Generate personal data and apply configurable corruptions | Modular generation and explicit corruption functions | General-purpose; not tailored to graduate records or a Québec error catalogue |
+| Synthea [9] | Synthetic patient populations and health records | Configuration, reproducibility, synthetic records | Health care, not person matching across alumni-office files |
 
-**Working rule.** The dataset could become a project of its own. To keep the main project moving, **version 1 contains only what slice 4 needs**; every other idea goes into a backlog (section 15).
+Open-source alumni-management applications also exist, for example [10, 11]; they are software for managing alumni, not data for evaluating matching. The contribution of this proposal is therefore specific: graduate-oriented source formats, Québec French name variation, controlled and coded defects, and ground truth that supports both linkage and defect-level evaluation.
 
----
+## 3. Design choices
+
+### 3.1 One person, separate degree records
+
+The generator creates one canonical person record for each fictional graduate and a separate record for each degree. A person's identity is not repeated because they earned several degrees, and the linkage task has a single target per person. The register is therefore split into `registrar_people.csv` (one row per person) and `registrar_degrees.csv` (one row per degree, linked by the synthetic student number).
+
+### 3.2 Ground truth comes first
+
+The generator creates a hidden synthetic population first, then renders each person into source-specific files and records every deliberate variation. The truth is therefore not reconstructed after the fact: it is the starting point, and the source files are derived from it. The matching method never reads the truth files; they describe the answer, not the clues.
+
+### 3.3 Real-world structure, not uniform noise
+
+Uniform random character edits are blind to how records actually go wrong. A person typing *o* tends to hit a neighbouring key such as *i* or *p*; an old faculty spreadsheet omits the student number; a newsletter list puts the family name first; one system drops accents. The generator therefore combines character-level typos, informed by the classic studies of spelling errors [12, 13, 14], with systematic variations, stale contacts, missing fields and genuine homonyms. Those studies motivate the categories of error; they do not provide measured rates for Québec personal names, so the rates remain configuration parameters (section 9).
+
+### 3.4 Statistics used within their limits
+
+Each official source has a coverage period, a population and a collection method. These limits are recorded with each downloaded source, carried into the realism report, and stated in section 12. Where no suitable official distribution exists, the generator uses a labelled approximation, never presented as an official statistic.
+
+### 3.5 Reproducibility and provenance
+
+A configuration file and a random seed control the population size, the assignment to sources and the corruption. With the same generator version, source snapshots, configuration and seed, the generator reproduces the same records and ground truth. `metadata.json` records these inputs, with source URLs, download dates, licences, row counts and checksums: reproducibility depends on preserving the source snapshots, not only the seed.
+
+### 3.6 Stable record identifiers
+
+Every record carries an opaque, generated `record_id`, repeated in the ground truth. A row number is not enough: sorting a file changes it. Each identifier is drawn independently for each record, reproducibly from the seed, and is never derived from the person's identifier or from a sequence shared by one person's records: otherwise two records of the same person would share a suffix, and the identifier would leak the answer. A prefix may name the source file, which is no secret. The identifier lets an evaluator join a method's output to the truth; a matching method must not use it as a feature.
 
 ## 4. A worked example
 
-One true person, her three rows in three files, and what a matcher must do.
+One invented person, her records in four files, and what a matcher must do.
 
-**The true person** (in `truth_people.csv`, never shown to the cleaning):
+**The underlying person** is Marie-Ève Tremblay, born on 12 March 1994, with synthetic student number `VL2012041`. She earned a bachelor's degree in civil engineering in 2016 and has two email addresses.
 
-| true_person_id | first_name | last_name | birth_date | degree | student_number | email | phone |
-|---|---|---|---|---|---|---|---|
-| P000123 | Marie-Ève | Tremblay | 1974-03-12 | Baccalauréat en génie civil, 1996 | VL1992041 | marie-eve.tremblay@courriel.example | (819) 155-2041 |
+| Source file | Example record | What the record illustrates |
+|---|---|---|
+| `registrar_people.csv` | `record_id: RP-7F3A91 · VL2012041, Marie-Ève, Tremblay, 1994-03-12` | The clean, person-level reference |
+| `registrar_degrees.csv` | `record_id: RD-C42E08 · VL2012041, Baccalauréat en génie civil, Génie, 2016` | One degree; a person can have several such rows |
+| `faculty_engineering_2016.csv` | `record_id: FE2016-8A17D4 · Matricule: (empty) · Nom: Trembaly · Prénom: Marie Eve · Programme: Génie civil · Année: 2016 · Courriel: metremblay@courriel.example · Téléphone: 819 155-2041` | Student number missing; a transposition in the family name; hyphen replaced by a space and accent dropped in the first name; a short program label; another phone format; her second email address |
+| `newsletter_2019.csv` | `record_id: NL2019-B8421F · Courriel: marie-eve.tremblay@courriel.example · Nom complet: TREMBLAY Marie-Eve` | Family name first, upper case, accent dropped |
 
-**Her rows in the messy world:**
+The same sources also contain **Marie Tremblay**, born in 1995, with a different degree in 2017. She is a different synthetic person: a matcher that links her records to Marie-Ève has made a false match, even though the names are close.
 
-| File | Row | What it says | What happened |
+The ground truth identifies the person behind each record and every defect introduced:
+
+| source file | record_id | true_person_id | defect codes |
 |---|---|---|---|
-| `registrar_degrees.csv` | 5120 | `VL1992041, Tremblay, Marie-Ève, 1974-03-12, Baccalauréat en génie civil, Génie, 1996` | Nothing: the reference |
-| `faculty_engineering_1996.csv` | 17 | `Nom: Trembaly · Prénom: Marie Eve · Matricule: (empty) · Programme: Génie civil · Année: 1996 · Courriel: metremblay@courriel.example · Téléphone: 819 155-2041` | Last name: **transposition** (`bl` → `lb`) · first name: **hyphen** replaced by a space, **accent** dropped · student number **missing** · program under its **short name** · another email address (the person had two) · phone in **another format** |
-| `newsletter_2019.csv` | 842 | `Courriel: marie-eve.tremblay@courriel.example · Nom complet: TREMBLAY Marie-Eve` | **Upper case**, family name **first**, accent dropped |
+| `registrar_people.csv` | `RP-7F3A91` | `P000123` | *(none)* |
+| `registrar_degrees.csv` | `RD-C42E08` | `P000123` | *(none)* |
+| `faculty_engineering_2016.csv` | `FE2016-8A17D4` | `P000123` | `last_name:typo.transposition`; `first_name:var.hyphen`; `first_name:var.accent_dropped`; `student_number:rec.missing`; `program:var.short_name`; `phone:fmt.phone` |
+| `newsletter_2019.csv` | `NL2019-B8421F` | `P000123` | `full_name:var.case`; `full_name:var.order_swapped`; `full_name:var.accent_dropped` |
 
-**The trap next to her.** The same files contain **Marie Tremblay**, born 1975, *Baccalauréat en enseignement*, 1997: a **different** person (P000124). Same last name, same first letter, almost the same age. A matcher that merges the two is wrong.
+The four record identifiers share nothing with each other or with `P000123`: only the ground truth connects them. The student number `VL2012041`, by contrast, is shared on purpose: it is evidence a matcher may use, when a source provides it.
 
-**Her rows in `truth_rows.csv`:**
+A successful method links the faculty and newsletter records to `P000123` and keeps Marie Tremblay separate. The ground truth scores the result, and shows which defects the method handled or missed.
 
-| file | row | true_person_id | defects |
-|---|---|---|---|
-| registrar_degrees.csv | 5120 | P000123 | |
-| faculty_engineering_1996.csv | 17 | P000123 | `last_name:typo.transposition; first_name:var.hyphen; first_name:var.accent_dropped; student_number:rec.missing; program:var.short_name; phone:fmt.phone` |
-| newsletter_2019.csv | 842 | P000123 | `full_name:var.case; full_name:var.order_swapped; full_name:var.accent_dropped` |
+## 5. Name sources and population calibration
 
-**What a good matcher does:** links faculty row 17 and newsletter row 842 to `VL1992041`, and does **not** link Marie Tremblay's rows to her. The truth file says whether it succeeded, and **which defects** it handled or missed.
+### 5.1 Family names: a useful but dated Québec distribution
 
----
+The Institut de la statistique du Québec (ISQ) published *Les noms de famille au Québec : aspects statistiques et distribution spatiale* [15], with tables of the most frequent family names; the ISQ page presents estimates for 2005, and the tables of the 1,000 most frequent names are archived (24 May 2006) [16]. The order of magnitude is telling: about 81,500 people named Tremblay, 59,800 Gagnon, 57,000 Roy. This Québec-specific distribution produces the common names and homonyms that make matching hard.
 
-## 5. How the generator works
+The source is a single snapshot, not an annual series from 2000 to 2025, and no comparable recent table has been identified. Version 1 therefore uses it as a fixed historical distribution and says so; the generator does not invent year-by-year changes by interpolating values that were never published. A newer comparable source, if one is found, will enter as a new versioned input rather than silently replacing this one.
+
+### 5.2 First names: annual data from 1980 to 2025
+
+Retraite Québec's *Banque de prénoms* provides first-name counts by year from 1980 to 2025, in separate datasets for girls and boys, under a CC BY 4.0 licence [17, 18]. It covers children eligible for family benefits, born in Québec or having immigrated to Québec: a useful frequency source, not a complete register of births. Counts for names given to fewer than five children are suppressed, and names given only once over the whole period are removed; the generator never treats the string `<5` as a name or invents the suppressed counts.
+
+The source does not cover births before 1980, while graduates since 1965 were born from the 1940s on. Before version 1 claims year-specific sampling for those cohorts, one of three approaches must be chosen and documented: a suitable historical source; a clearly labelled period-level approximation, reported separately; or a calibrated population restricted to supported birth years.
+
+### 5.3 International names and student shares
+
+The share of international students among graduates is substantial and rising. According to the ISQ, the share of Québec university degree recipients who were international students rose from 12.2% in 2013 to 21.0% in 2023 [19]; in 2021 they represented 36.7% of second-cycle and 38.9% of third-cycle degree recipients [20]. These figures concern **degrees awarded**, not enrolment; the two measure different populations and must not be substituted for each other.
+
+International names bring the hardest real cases for matching: transliteration variants, family name first, several given names. They are planned for version 2, where the figures above will calibrate the share of international graduates by level and period. Group labels will come from the generator's own synthetic metadata, never inferred from a name.
+
+### 5.4 Degrees and programs
+
+Degrees are generated from a fictional list of programs and faculties inspired by Québec university terminology. A person may earn one or more degrees; birth and graduation dates follow plausible age ranges, wider for graduate degrees. Graduation years start in 1965, the founding year of the fictional university. Student numbers follow a reproducible format: `VL`, the year of admission, and a sequence number.
+
+### 5.5 Contact data that is non-real by construction
+
+Every generated email address ends in `.example`, a domain reserved for documentation [21]. A typo in a domain must keep that ending: `courriel.example` may become `courriel.exampel.example`, never `courriel.exmaple`, which would leave the reserved domain.
+
+Telephone numbers use a Québec area code (819, 873, 450, 514, 418) with a deliberately invalid exchange. In the North American Numbering Plan's `NXX-NXX-XXXX` format, `N` is a digit from 2 to 9 [22], so an exchange starting with 0 or 1, as in `819-155-2041`, is never assigned. This gives about two million distinct numbers per area code, in a realistic format. The reserved fictional range 555-0100 to 555-0199 offers only 100 numbers per area code: thousands of people would share them, and shared numbers would create false duplicates.
+
+## 6. How the generator works
+
+The generator proceeds in stages; each takes explicit inputs and writes outputs that can be validated on their own.
 
 ```mermaid
 flowchart LR
-    S["Sources<br/>(ISQ last names,<br/>Retraite Québec first names,<br/>shares by level, programs)"] --> T["1. True population<br/>people, degrees,<br/>contacts"]
-    T --> A["2. Assignment<br/>who appears in which file,<br/>with which fields"]
-    A --> R["3. Rendering<br/>each source's columns<br/>and formats"]
-    R --> C["4. Corruption<br/>field errors,<br/>record defects"]
-    C --> M["Messy files<br/>(CSV)"]
-    C --> G["Ground truth<br/>truth_people, truth_rows"]
-    P["Settings + seed"] -.-> T
-    P -.-> A
-    P -.-> C
-    C --> X["metadata.json<br/>(seed, version,<br/>parameters, sources)"]
+    S["Versioned sources<br/>and configuration"] --> T["Synthetic population<br/>people, degrees, contacts"]
+    T --> GP["Ground truth: people<br/>truth_people.csv"]
+    T --> R["Canonical reference files<br/>people and degrees"]
+    T --> A["Assign people to sources"]
+    A --> F["Render source-specific files<br/>headers, fields, formats"]
+    F --> C["Apply configured defects"]
+    C --> M["Source files for cleaning"]
+    R -. record to person .-> GR["Ground truth: records<br/>truth_rows.csv"]
+    F -. record to person .-> GR
+    C -. each defect, as applied .-> GR
+    S --> X["metadata.json<br/>seed, versions, parameters"]
+    C --> X
 ```
 
-1. **True population.** For each person: sex and year of birth; a first name drawn from the names given that year (section 7.2); a last name drawn from Québec frequencies (7.1); one or more degrees consistent with the age (7.4); a student number; one or more emails built from the name; a phone number that cannot exist (7.5). Some people are international students (7.3).
-2. **Assignment.** Each person appears in the registrar file (all degrees), and in 0 to 3 messy files, according to the settings: a faculty file for each faculty they graduated from (if that faculty's file covers their year), the newsletter list with some probability, and so on.
-3. **Rendering.** Each source writes its own columns, headers and formats: the registrar's clean export; each faculty's own French headers; full name in one field in the newsletter list.
-4. **Corruption.** Field errors (typos and systematic variants, section 8) and record defects (missing fields, duplicates inside a file, obsolete emails) are applied **with known probabilities**, and every change is written to `truth_rows.csv`.
-5. **Outputs.** The messy CSV files, the two truth files, and `metadata.json`, which records the seed, the generator's version, every parameter, and the version of every source table.
+The **population** stage creates the synthetic people with their degrees and contacts. The **assignment** stage decides which sources contain each person: a faculty file for each faculty and year they graduated from, the newsletter list with some probability. The **rendering** stage gives each source its own column names, field combinations and formats: the registrar uses official program names and ISO dates, a faculty spreadsheet French headers and short program names, the newsletter list a single full-name field. The **corruption** stage applies the configured defects. The ground truth is written in two parts, and never reconstructed from the messy files: `truth_people.csv` comes straight from the population, before any source exists; `truth_rows.csv` is written by the rendering and corruption stages at the moment each record is created and each defect applied (dotted arrows). The source files given to a method contain no `true_person_id` and no annotation.
 
----
+## 7. File formats
 
-## 6. The files, and what each column can carry
-
-### 6.1 Overview
-
-| File | In version 1 | Produced by | State |
-|---|---|---|---|
-| `registrar_degrees.csv` | ✅ | The registrar (official) | **Clean**: the reference |
-| `faculty_<name>_<year>.csv` (two or three) | ✅ | Each faculty, in its own format | **Dirty** |
-| `newsletter_2019.csv` | ✅ | The newsletter manager | Medium |
-| `reunion_2018.csv` | later | The events coordinator | Dirty |
-| `mailing_events.csv` | later | The mailing system (Office 365) | Clean, but out of date relative to the lists |
-| `truth_people.csv`, `truth_rows.csv` | ✅ | The generator | **Hidden from the cleaning** |
-| `metadata.json` | ✅ | The generator | Settings and versions |
-
-**The key point for realism.** Emails and phones are **not** in the registrar's file; they are only in the messy files. So the work is to **link** each messy row to the right registrar person, most of the time without a student number.
-
-### 6.2 Dictionary
-
-**`registrar_degrees.csv`** — one row per degree. Machine export, English headers, UTF-8, ISO dates.
-
-| Column | Meaning | Defects it can carry |
+| File | One row represents | Content |
 |---|---|---|
-| `student_number` | The registrar's number, for life (`VL` + year of admission + sequence) | None |
-| `last_name`, `first_name` | The name **at graduation** (a person who later changed name keeps the old one here) | None |
-| `birth_date` | `YYYY-MM-DD` | None |
-| `program`, `faculty` | Official French names (*Baccalauréat en génie civil*, *Génie*) | None |
-| `graduation_year` | From 1965 | None |
+| `registrar_people.csv` | One synthetic graduate | `record_id`, student number, canonical first and last names, birth date |
+| `registrar_degrees.csv` | One degree | `record_id`, student number, program, faculty at graduation, graduation year, name printed on the diploma |
+| `faculty_<name>_<year>.csv` | One person as recorded by a faculty | `record_id`, faculty-specific headers and formats, names, optional student number, program, contacts. Defects may be present |
+| `newsletter_<year>.csv` | One subscriber | `record_id`, email, full name in one field, sign-up date. May be duplicated or outdated |
+| `truth_people.csv` | One underlying synthetic person | `true_person_id`, identity attributes, degree and contact relationships, status fields. Not an input to cleaning |
+| `truth_rows.csv` | One record of a generated file | Source file, `record_id`, record type, `true_person_id`, defect codes. Not an input to cleaning |
+| `metadata.json` | One generated package | Generator and data versions, seed, configuration, source versions, download dates, licences, row counts, checksums |
 
-**`faculty_<name>_<year>.csv`** — one row per graduate the faculty recorded. **Headers and formats differ by faculty**, as in real offices.
+The `record_type` column of `truth_rows.csv` distinguishes person records from degree records, so that a degree row and a person row are never counted as duplicate person records. Degree rows may serve as matching evidence. The release separates `data/reference/`, `data/sources/` and `data/ground_truth/`, and its instructions warn that a method run with access to the ground truth invalidates the measurement.
 
-| Column (one possible header) | Meaning | Defects it can carry |
+## 8. Error model
+
+Three kinds of variation are planned: typing errors, systematic variations, and record-level defects. Each carries its own code, so that results can be reported by kind of defect rather than hidden in one score.
+
+### 8.1 Typing errors
+
+Damerau observed that most misspellings are a single elementary error among four: substitution, deletion, insertion, and transposition of adjacent letters [12]. The generator implements these as configurable operators; substitutions and insertions use neighbouring keys on a keyboard layout that is chosen and versioned rather than assumed. Pollock and Zamora reported, in a large corpus of misspellings in scientific and scholarly text, that the first letter is rarely wrong [13]; the generator tests this as a hypothesis by giving the first character a lower error probability.
+
+| Defect code | Meaning | Example |
 |---|---|---|
-| `Nom` | Last name | Typos, accents, case, phonetic variants, name change, encoding |
-| `Prénom` | First name | Typos, accents, hyphens, initials, encoding |
-| `Matricule` | Student number | **Missing** (often in old files), mistyped |
-| `Programme` | Program | **Short or local name** (*Génie civil*), not the official one |
-| `Année` | Graduation year | Rarely off by one |
-| `Courriel` | Email | Another address of the person, typo on the domain, obsolete address |
-| `Téléphone` | Phone | Another format |
+| `typo.substitution_keyboard` | Replace a character by a neighbouring key | `Tremblay` → `Trwmblay` |
+| `typo.transposition` | Swap adjacent characters | `Tremblay` → `Trembaly` |
+| `typo.deletion_double` | Remove one character of a doubled pair | `Pelletier` → `Peletier` |
+| `typo.deletion` | Remove a character | `Gagnon` → `Gagon` |
+| `typo.insertion` | Insert a character or repeat a nearby key | `Gagnon` → `Gaggnon` |
 
-**`newsletter_2019.csv`** — one row per subscriber.
+### 8.2 Systematic variations and formatting
 
-| Column | Meaning | Defects it can carry |
+These are not typing mistakes: they come from different data-entry conventions, systems or source requirements, and in real files they are often more frequent than typos.
+
+| Defect code | Variation | Example |
 |---|---|---|
-| `Courriel` | Email (the subscription key) | Typo, obsolete address |
-| `Nom complet` | First and last name **in one field** | Case, order swapped, accents, initials |
-| `Date d'inscription` | Sign-up date | Another format |
+| `var.accent_dropped` | Remove diacritics | `Marie-Ève` → `Marie-Eve` |
+| `var.hyphen` | Replace or remove hyphens | `Marie-Ève` → `Marie Ève` or `MarieEve` |
+| `var.case` | Change letter case | `Tremblay` → `TREMBLAY` |
+| `var.initial` | Replace a given name by an initial | `Jean-François Côté` → `J.-F. Côté` |
+| `var.order_swapped` | Put the family name first | `Marie Tremblay` → `Tremblay Marie` |
+| `var.phonetic` | Apply a documented French spelling variant | `Thibault` ↔ `Thibeault` |
+| `var.transliteration` | Another Latin transliteration (version 2) | `Mohamed` / `Mohammed` |
+| `var.name_change` | A former or current family name in different sources | `Sophie Gagnon` / `Sophie Roy` |
+| `var.short_name` | A local program label instead of the official one | `Baccalauréat en génie civil` → `Génie civil` |
+| `var.encoding` | Text read with the wrong character encoding (version 2) | `Édouard` → `Ã‰douard` |
+| `fmt.date` | Another date representation | `1998-06-01` → `01/06/1998` |
+| `fmt.phone` | Another telephone format | `819-155-2041` → `819 155 2041` |
+| `email.typo_domain` | A typo in a domain label, keeping `.example` | `courriel.example` → `courriel.exampel.example` |
+| `email.obsolete` | An older address kept after a newer one exists | Old and current addresses of the same person |
 
-**`truth_people.csv`** — one row per true person: `true_person_id`, names, sex, birth date, origin group (local / international), status (alive / deceased), and the list of their degrees, emails and phones.
+Phonetic and transliteration variants come from curated tables, not from unrestricted random substitutions, so that two different people with similar names stay distinct in the ground truth.
 
-**`truth_rows.csv`** — one row per row of every messy file: `file`, `row`, `true_person_id`, `defects` (a list of `field:code`, with the codes of section 8.4).
-
-**`metadata.json`** — seed, generator version, every parameter, and for each source table: its name, origin and download date.
-
----
-
-## 7. Design choices, one by one
-
-### 7.1 Last names: Québec frequencies
-
-**Choice.** Draw last names according to their **real frequency in Québec**.
-
-**Why.** Frequent names produce **homonyms** (several different people named Tremblay, born the same year), which is the real difficulty of matching: two rows with the same name are not always the same person. Close names (Dion / Dionne) add near-homonyms.
-
-**Source.** Institut de la statistique du Québec (ISQ), *Les noms de famille au Québec* (Louis Duchesne), with tables of the 1,000 most frequent names. Order of magnitude: Tremblay about 81,500 people, Gagnon 59,800, Roy 57,000, Côté 52,300, Bouchard 40,100.
-
-**Limit.** Figures from about 2005–2006, now archived. Acceptable: the distribution of family names changes slowly.
-
-### 7.2 First names: by year of birth
-
-**Choice.** Draw each person's first name according to the names **given in Québec in the year of their birth**, and by sex.
-
-**Why.** Popular first names change with the decades; a 1965 graduate and a 2024 graduate do not have the same names. Compound names (Marie-Ève, Jean-François) are frequent and are a major source of variants (section 8).
-
-**Source.** Retraite Québec, *Banque de prénoms* (girls and boys), on Données Québec, in CSV: every first name given each year since 1980, with its count. Licence CC BY 4.0 (credit: Retraite Québec). Names given to fewer than five children are hidden.
-
-**Limit.** The bank **starts in 1980**, while graduates since 1965 were born from the 1940s on (open question 14.3).
-
-### 7.3 International students
-
-**Choice.** A share of graduates are international students, with names from their countries of origin. The share depends on the **level of study** and on the **year**.
-
-**Why.** Bachelor's graduates are mostly from Québec; at master's and doctorate, international students are much more numerous. For matching, their names bring the hardest real cases: transliteration (Mohamed / Mohammed / Muhammad), family name written first, several given names.
-
-**Sources.**
-- ISQ: the share of international students among graduates rose from **12.2% (2013) to 21.0% (2023)**; in 2021, **36.7% at master's** and **38.9% at doctorate**.
-- Bureau de coopération interuniversitaire (BCI): about **57,000** international students in Québec universities in fall 2024, **18%** of the student population.
-- Gouvernement du Québec, *Portrait statistique des étudiants internationaux*: the countries of origin, to consult for version 2.
-
-**In version 1?** No: backlog (section 15). Planned for version 2, with fairness measures (section 10.4).
-
-### 7.4 Dates, degrees, student numbers
-
-| Field | Rule |
-|---|---|
-| Birth date | Consistent with graduation: graduating between about 21 and 35 years old (older for graduate degrees) |
-| Degrees | From a fictional list of programs and faculties, inspired by Québec universities; some people get two degrees |
-| Graduation year | From 1965, the founding year of Val-Lumière |
-| Student number | `VL` + year of admission + a sequence number (uppercase letters and digits) |
-
-### 7.5 Contact information that can never belong to anyone
-
-| Field | Rule | Why it cannot be real |
-|---|---|---|
-| Email | Built from the name as people really do (`marie-eve.tremblay@…`, `metremblay@…`, `mtremblay72@…`), on domains ending in **`.example`** | `.example` is reserved for documentation and can never be a real domain (RFC 2606) |
-| Phone | Real Québec area codes (819, 873, 450, 514, 418), but an **exchange starting with 0 or 1**, for example `(819) 155-2041` | In the North American Numbering Plan, the 3-digit exchange never starts with 0 or 1, so such a number is never assigned (to verify in NANPA's documents) |
-
-**Why not the famous 555 numbers?** Only 555-0100 to 555-0199 are reserved for fiction: 100 numbers per area code, 500 in total. For thousands of people, many would share a number, and two people sharing a phone look like duplicates: the data itself would create false clues. The exchange rule gives about 2 million numbers per area code, unique, in the right format, and impossible to dial.
-
----
-
-## 8. The error model
-
-There are three families, with different causes, so they need different models.
-
-### 8.1 Typing errors, letter by letter
-
-**Background.** Damerau (1964) observed that most misspellings are a **single** elementary error among four: substitution, deletion, insertion, and **transposition** of two adjacent letters. Levenshtein (1966) defined the distance counting the first three; adding transposition gives the Damerau–Levenshtein distance. Pollock and Zamora (1984), studying a large corpus of errors, reported that the **first letter** of a word is rarely wrong. Kukich (1992) surveys these results. *(Exact figures to verify in the papers before publication.)*
-
-| Code | Error | Example | How it is generated |
-|---|---|---|---|
-| `typo.substitution_keyboard` | A key replaced by a **neighbouring** key | Tremblay → Trwmblay | A table: each key → its neighbouring keys |
-| `typo.transposition` | Two adjacent letters swapped | Tremblay → Trembaly | Swap positions *i* and *i*+1 |
-| `typo.deletion_double` | A doubled letter loses one | Pelletier → Peletier | Find a doubled letter, drop one |
-| `typo.deletion` | A letter dropped | Gagnon → Gagon | Remove one letter |
-| `typo.insertion` | A letter added | Gagnon → Gaggnon | Repeat a letter, or insert a neighbouring key |
-
-**Position.** Lower probability on the first letter. **Count.** Usually one error per corrupted name, sometimes two.
-
-### 8.2 Systematic variants
-
-Not slips of the finger, but different ways of writing the same name, or traces of the tools. In real files they are often **more frequent than typos**, and a letter-by-letter model misses them completely.
-
-| Code | Variant | Example | How it is generated |
-|---|---|---|---|
-| `var.accent_dropped` | Accents lost | Marie-Ève → Marie-Eve; Lévesque → Levesque | Unicode decomposition (`unicodedata.normalize('NFD')`), then remove the accent marks |
-| `var.hyphen` | Hyphen, space, joined | Marie-Ève / Marie Ève / MarieEve | Replace or remove `-` |
-| `var.case` | Case | TREMBLAY, tremblay | Upper or lower case |
-| `var.initial` | Initials, abbreviations | M. Tremblay; J.-F. Côté | Keep the first letter, add a period |
-| `var.order_swapped` | Family name first | "Tremblay Marie" | Swap the two parts |
-| `var.phonetic` | French phonetic variants | Thibault / Thibeault; Gauthier / Gautier | A table of rewriting rules (`ault` ↔ `eault`, `th` ↔ `t`, é / è / ê / e…) |
-| `var.transliteration` | International names (version 2) | Mohamed / Mohammed / Muhammad | A table of variant groups |
-| `var.name_change` | Name changed since graduation | Sophie Gagnon, now Roy | Replace the last name in some files only |
-| `var.short_name` | Local name of a program | *Génie civil* for *Baccalauréat en génie civil* | A table: official name → local names |
-| `var.encoding` | Encoding error (version 2) | é → Ã© ("Ã©douard") | Encode in UTF-8, decode as Windows-1252 |
-| `fmt.date`, `fmt.phone` | Other formats | `01/06/1998`, `juin 1998`; `(819) 155 2041` | Several formatting functions, one drawn at random |
-| `email.typo_domain`, `email.obsolete` | Dirty emails | `courriel.exmaple`; an address that bounces | Typo on the domain; an old address replaced by a new one |
+A score by defect code measures how robust a matching method is to that defect, not whether the method can detect or correct it. Two different email addresses, for instance, do not show which one is obsolete; detecting it would need evidence such as dated snapshots or a bounce record. Version 1 labels `email.obsolete` to measure linkage on records with stale contacts, and does not claim to measure obsolete-contact detection; that claim is reserved for a later task whose inputs carry such evidence.
 
 ### 8.3 Record-level defects
 
-| Code | Defect |
+| Defect code | Meaning |
 |---|---|
-| `rec.missing` | A field left empty (student number in old faculty files, birth date) |
-| `rec.duplicate_in_file` | The same person twice in the same file |
-| `rec.deceased_not_flagged` | A deceased person still listed as active |
+| `rec.missing` | A field, such as a student number or birth date, is blank |
+| `rec.duplicate_in_file` | A second record for the same person in one source file |
 
-### 8.4 Why codes
+Each defect has its own rate and rules. A duplicate record is not a person with two degrees; an obsolete email is not a typo; and a record without a student number can still be matched on other evidence. A defect is scored only if a method could observe it in the source files: a deceased person still listed in a source is therefore not part of version 1, because no source file carries a death status (section 12).
 
-Every defect has a **code**, written in `truth_rows.csv`. It makes the results readable **by kind of defect**: "the method catches 98% of dropped accents but only 60% of name changes" is far more useful than one global score.
+## 9. Parameters and dataset sizes
 
-**Related work.** The GeCo generator (Christen and Vatsalan, 2013) and the generator behind FEBRL use the same families of "corruptors" (keyboard, phonetic, OCR). Our contribution is the adaptation to **French and Québec**: accents, compound first names, French phonetics, the Canadian French keyboard, local and international names, and the sources an alumni office really receives.
+The values below are the starting configuration. The **Basis** column says what each value rests on.
 
----
-
-## 9. Parameters, sizes, reproducibility
-
-Everything is in one settings file, with a **seed**: the same seed always produces the same data, so results and tests are reproducible.
-
-| Parameter | Proposal (to decide) |
-|---|---|
-| Number of times one person appears in the messy files | 0 (35%), 1 (40%), 2 (20%), 3 or more (5%): the story's "two or three times" |
-| Probability that a name has a defect | about 30% |
-| Among defects | about 60% systematic variants, 40% typos |
-| Typos per corrupted name | 1 (85%), 2 (15%) |
-| Student number present in faculty files | 1990s: 10%; 2010s: 70% |
-
-| Size | People | Use |
+| Parameter | Initial value | Basis |
 |---|---|---|
-| small | 2,000 | Tests and development: seconds |
-| medium | 20,000 | Intermediate |
-| full | **60,000** | **The story's number** |
+| Number of people | 2,000 / 20,000 / 60,000 | Design choice: small for tests, medium for development, full scale |
+| Source appearances per person (beyond the register) | 0: 35% · 1: 40% · 2: 20% · 3 or more: 5% | Assumption, to tune |
+| Names with at least one defect | about 30% | Assumption, to tune |
+| Systematic variants among defects | about 60% (typos 40%) | Assumption, to tune |
+| Typos per corrupted name | one: 85% · two: 15% | Motivated by [12]; rates are assumptions |
+| Student number present in faculty files | lower in older files, higher in recent ones | Assumption; values set once the file profiles are fixed |
+| Family-name frequencies | ISQ snapshot | Sourced [15, 16] |
+| First-name frequencies by year and sex | Retraite Québec, 1980–2025 | Sourced [17, 18]; before 1980: to decide (section 5.2) |
 
-60,000 people make the real problem appear: comparing every pair of records means about **1.8 billion** comparisons. Matching at that scale needs **blocking** (comparing only plausible candidates), a core topic of record linkage (Christen, 2012).
+Every probability is configurable, and the realism report compares requested and generated rates. The package will include one standard configuration, with optional low-, medium- and high-difficulty scenarios; results from different configurations are not comparable as one benchmark.
 
-**Traceability.** Every source table is stored with its origin and download date; `metadata.json` records the seed, the parameters and the generator's version, so any result can be traced to the exact data it used.
+At 60,000 underlying people, comparing every pair of people requires $60\,000 \times 59\,999 / 2 = 1\,799\,970\,000$ comparisons, about 1.8 billion. This illustrates the scale, but it is not the actual workload: a person may appear in several files, so the files contain more records than people. With the appearance rates above, the messy files hold at least $0.95$ records per person, about 57,000 records for 60,000 people, in addition to the 60,000 register rows. For $M$ person records eligible for deduplication, comparing every pair requires $M(M-1)/2$ comparisons; linking $S$ source person records to $R$ register rows requires $S \times R$. The release will report these exact counts for each generated package. This scale makes blocking necessary and lets the benchmark measure the trade-off between fewer comparisons and missed matches [23].
 
----
+## 10. Evaluation protocol
 
-## 10. How to measure with it
+Linkage to a register and pairwise duplicate detection are related but different tasks; their denominators must not be mixed.
 
-### 10.1 Linkage and deduplication
+### 10.1 Person-to-register linkage
 
-A method proposes **links** (this messy row is that registrar person) or **pairs** (these two rows are the same person). The truth file says which are right.
+For each person record in the source files, a method either proposes one canonical person from the register or abstains. The ground truth gives the correct canonical person. Let $N$ be the number of source person records evaluated, $L$ the number for which the method proposes a link, and $C$ the number of those links that are correct.
 
-| Measure | Question it answers |
-|---|---|
-| **Precision** | Of the links proposed, how many are right? (Low precision: different people merged, like the two Marie Tremblay) |
-| **Recall** | Of the true links, how many were found? (Low recall: duplicates left behind) |
-| **F1** | One number balancing the two (their harmonic mean) |
+$$
+\text{Link precision} = \frac{C}{L}, \qquad \text{Link recall} = \frac{C}{N}, \qquad \text{Coverage} = \frac{L}{N}
+$$
 
-### 10.2 Blocking
+A wrong link counts in $L$ but not in $C$: it lowers precision and recall. An abstention counts in neither: it lowers recall and coverage, not precision. A method that links everything reaches full coverage and pays for its errors in precision; a cautious method keeps precision high and pays in recall. If a method proposes no link ($L = 0$), link precision is reported as undefined, not as 0 or 1, with recall and coverage reported as usual. Degree records serve as evidence but are not counted in $N$.
 
-| Measure | Question it answers |
-|---|---|
-| **Pairs completeness** | Of the true matching pairs, how many survive the blocking? |
-| **Reduction ratio** | Of all possible pairs, how many does the blocking avoid comparing? |
+In version 1 every source person record has a canonical row, so abstaining is never the right answer, and the ability to reject records with no counterpart is not measured. An optional scenario with unmatched records (for example, people who left without a degree) will add correct abstentions and score them separately.
 
-A good blocking keeps almost every true pair while avoiding almost all comparisons (Christen, 2012).
+### 10.2 Pairwise deduplication
 
-### 10.3 By kind of defect
+A method proposes pairs of records that refer to the same person. The records compared are the person records of the messy source files (`data/sources/`), within one file and across files. The canonical register is excluded, because it is the reference of the linkage task; degree records may provide evidence but are not counted as person records. A true positive (TP) is a correct same-person pair; a false positive (FP) merges two different people; a false negative (FN) leaves a same-person pair unlinked.
 
-Recall computed separately for each defect code (section 8.4).
+$$
+\text{Precision} = \frac{TP}{TP + FP}, \qquad \text{Recall} = \frac{TP}{TP + FN}
+$$
 
-### 10.4 By group of names (version 2)
+$$
+F_1 = 2 \cdot \frac{\text{Precision} \times \text{Recall}}{\text{Precision} + \text{Recall}}
+$$
 
-The same measures for local and for international names. A method that works much better for one group than for the other is unfair to the people of the other group; the dataset should make this visible.
+Precision reveals wrong merges, recall missed duplicates; both are reported, so that a single F1 does not hide the trade-off.
 
-### 10.5 Baselines (to publish with version 1)
+### 10.3 Blocking
 
-To give a reference point, simple methods measured on the dataset: exact match on normalised name and year; edit distance (Levenshtein, Damerau–Levenshtein) with a threshold; the Jaro–Winkler similarity (Jaro, 1989; Winkler, 1990), widely used for names.
+**Pairs completeness** is the share of true matching pairs kept as candidates; **reduction ratio** is the share of all possible pairs eliminated. A good blocking keeps almost every true pair while avoiding most comparisons [23]. Each task fixes its comparison universe, so that two methods are always measured against the same denominator: for linkage, every pair of a source person record and a register row; for deduplication, every unordered pair of person records in the messy source files, within and across files, the register excluded (section 10.2). Both measures are computed over that universe only.
 
----
+### 10.4 Results by defect and by group
 
-## 11. Checking realism
+Results are broken down by defect code (accent loss, missing student number, name order, obsolete email…), so that the report shows which problems a method handles. Version 2 will compare results across generated name groups, local and international; a method that works much better for one group than another treats the people of the other group unequally, and the dataset makes this visible.
 
-Before a version is released, the generator produces a short report comparing what it made with what it claims:
+### 10.5 Baselines
 
-| Check | Compared with |
-|---|---|
-| Frequency of the 50 most common last names | The ISQ table |
-| Most common first names by decade of birth | The Retraite Québec bank |
-| Age at graduation, by level | The rule of section 7.4 |
-| Share of international students by level (version 2) | ISQ and BCI figures |
-| Rate of each defect actually applied | The parameters |
-| **Homonyms**: how many true people share the same full name and birth year | Reported, because it measures how hard the dataset is |
-| Distribution of copies per person | The parameters |
+The first release will include simple, documented baselines, measured on the released data: exact match on normalised fields; edit distance (Levenshtein [24], and Damerau–Levenshtein [12]) with a threshold; the Jaro–Winkler similarity [25, 26]; and a probabilistic baseline in the Fellegi–Sunter framework [27]. Their configuration and results are versioned with the data.
 
----
+## 11. Realism checks and release validation
 
-## 12. Limits and ethics
+Before each release, an automated report compares the output with the configuration and with the sources it claims to follow: frequencies of common family names against the ISQ snapshot; first names against Retraite Québec for the covered years; age at graduation; degrees per person; source appearances per person; the frequency of homonyms, which measures how hard the dataset is; and the rate of each defect. It also verifies that the same seed reproduces the same files, that every source record has a ground-truth entry, that every defect code is valid, that every email keeps `.example`, and that every telephone number uses an unassignable exchange.
 
-- **Synthetic, not real.** The data imitates statistical properties; it does not describe real people. Matching quality measured on it is an estimate, not a guarantee on real files.
-- **Sources have limits:** last names from about 2005; first names only since 1980; international shares by period, not by university.
-- **Coincidences.** Common names drawn with plausible dates may coincide with a real person (a "Marie Tremblay, born 1975" certainly exists). No real record is used or linked; the documentation says so.
-- **Licences of the sources** must be respected and credited (Retraite Québec data: CC BY 4.0; ISQ: their terms of reuse, to check).
-- **Fairness.** Names of different origins are not equally easy to match. The dataset should make this measurable, not hide it.
-- **No real contact data:** reserved email domains; phone numbers that cannot exist.
+A difference between output and configuration is a generator defect; a difference between output and an old external source may reflect the source's coverage or a deliberate choice. The report states which.
 
----
+## 12. Limitations, ethics, and licence
 
-## 13. Related work
+This is a synthetic test environment, not a sample of real alumni records; performance measured on it is no guarantee on a real university's data. Results depend on the generator's names, file structures, error operators and probabilities, so every result must state the exact configuration. The defect rates are design assumptions until validated against suitable evidence.
 
-| Work | What it is | Difference with ours |
-|---|---|---|
-| FEBRL (Christen, 2008) | A record linkage system with a data generator, and benchmark datasets with ground truth (also distributed with the Python library `recordlinkage`) | English-language names and Australian-style records |
-| GeCo (Christen and Vatsalan, 2013) | A flexible generator and "corruptor" of personal data | General-purpose; the language and the error tables are to be supplied |
-| Synthea | Synthetic patient records, for health care | Another domain; no focus on messy copies from several sources |
-| Kaggle student datasets | Synthetic or anonymous student tables | No ground truth, not an alumni office, not Québec |
-| Open-source alumni systems (GitHub) | Applications to manage alumni | Software, not data |
+The family-name source is a 2005 snapshot, archived in 2006. The first-name datasets cover 1980–2025, with small-count suppression; the strategy for earlier births remains open. International names, transliteration and group comparisons are planned for version 2. People who attended without graduating are outside the initial scope. A deceased person still listed in a source is not scored in version 1: the source files carry no death status, so a method could not observe the defect; a later scenario may add a death-notice or suppression list as an observable input.
 
-**What is new here:** French and Québec names from official statistics; the files an alumni office really receives; a coded taxonomy of defects; a ground truth per row; and, in version 2, international names and fairness measures.
+No real alumni record is used, but common names with plausible birth dates can coincidentally match real people; the public documentation says so. Synthetic contact values are designed not to be valid, and tests enforce the reserved domain and the unassignable exchange.
 
----
+Licences are recorded separately for the generator code (planned: MIT), the documentation (CC BY 4.0) and the source datasets. **The licence of the generated dataset is not yet decided.** The project will cite the sources used to design and calibrate the generator and comply with their licences and reuse terms. Whether a source's licence imposes obligations on the generated dataset itself will be assessed source by source, not assumed.
 
-## 14. Open questions
+## 13. From design proposal to benchmark
 
-1. **Keyboard layout** for neighbouring-key typos: Canadian French (the common layout in Québec, more faithful) or American QWERTY (simpler)?
-2. **Defect rates** (section 9): keep the proposals, or other values?
-3. **First names before 1980:** find an older source (the ISQ has published work on first names in Québec), or approximate with the earliest years available, and say so?
-4. **The list of programs and faculties:** fictional, but inspired by which real lists?
-5. **Licence of the dataset itself:** CC BY 4.0, like the documentation?
-6. **Its own repository:** when (after version 1 has been used by slice 4)?
+The dataset will be described as a released benchmark only once the generator is implemented, its output and ground truth validated, the tasks fixed, and the baselines run. The release will include:
 
----
+- source files and ground truth, kept apart;
+- the configuration, seed, generator version, source provenance and file checksums;
+- a data dictionary and the exact definition of each task;
+- automated tests for reproducibility, identifiers, defect annotations and safe contact values;
+- baseline results, by source and by defect type;
+- limitations, source licences, attribution and a citation format, checked against the questions of *Datasheets for Datasets* [1].
 
-## 15. Scope: version 1 and the backlog
+Later versions may add historical first names, international names and transliteration, encoding defects, more source types, the unmatched-record scenario, and a deceased-person scenario with an observable death-notice list, each as a versioned change of the generating process, so that earlier results remain reproducible.
 
-**Test question for any idea:** does slice 4 (cleaning and duplicate detection) need it to work? If not, it goes into the backlog.
+## 14. AI assistance and author responsibility
 
-| Version 1 (for slice 4) | Backlog (later) |
-|---|---|
-| Québec last and first names (7.1, 7.2) | International students and transliteration (7.3) |
-| Degrees, dates, student numbers (7.4) | Encoding errors, every format |
-| Registrar file, two or three faculty files, newsletter list | Reunion list, mailing-system events |
-| Typos (8.1) and the main variants (accents, hyphens, case, initials, order, short names, name change) | French phonetics, Canadian French keyboard |
-| Ground truth with defect codes; the realism report; baselines | 60,000 version; fairness measures; own repository; publication |
+Two AI tools were used during the development of this proposal: Claude (Anthropic) and ChatGPT (OpenAI). Claude drafted the first versions from design discussions with the author, revised later versions, and wrote the automated consistency checker for this document and its tests. ChatGPT restructured the text into a substantially revised draft, following the author's own review of the earlier version, and critically reviewed later versions, identifying inconsistencies in the record identifiers, the ground-truth annotations, the error model, the evaluation protocol, the references and the technical explanations. Each tool also reviewed drafts prepared with the other and found errors in them.
 
----
-
-## 16. Versions and citation
-
-*To write when version 1 exists:* version numbers (major.minor), a changelog, the licence of the data, and a "how to cite" entry.
-
----
+Ibrahim Chegrane set the project objectives, reviewed each version himself, evaluated every proposed change, and decided which to adopt. He is the sole author and is responsible for the final document, its design decisions, and the verification of its claims and references. Suggestions and checks from AI tools were treated as assistance, not as proof of correctness; neither tool is an author or bears responsibility for the work. Any material use of AI tools in implementing the generator, producing the dataset or evaluating matching methods will be documented with the corresponding release. This follows the principle that AI tools are disclosed transparently but cannot take authorial responsibility [28].
 
 ## Glossary
 
-| Term | Meaning |
+| Term | Meaning in this document |
 |---|---|
-| **Ground truth** | The right answer, known in advance: here, which rows are the same person |
-| **Record linkage** | Finding the records, in different sources, that refer to the same entity (here, a person) |
-| **Deduplication** | The same, inside one source |
-| **Blocking** | Comparing only plausible candidate pairs, instead of every pair |
-| **Precision, recall, F1** | How many proposed links are right; how many true links are found; a balance of the two |
-| **Benchmark** | A shared dataset, with a known answer, on which methods are measured and compared |
-| **Seed** | The number that starts the random generator: the same seed gives the same data |
-| **Transliteration** | Writing a name from another alphabet in Latin letters, often in several ways |
-| **Mojibake** | Garbled characters from a wrong encoding (é shown as Ã©) |
-
----
+| **Ground truth** | The known answer generated in advance: which person each source record represents, and which defects were introduced |
+| **Record linkage** | Linking records from different sources that refer to the same person |
+| **Entity resolution** | Determining which records refer to the same real or synthetic entity |
+| **Deduplication** | Identifying duplicate person records within or across sources |
+| **Blocking** | Restricting detailed comparisons to plausible candidate pairs |
+| **Precision** | Of the links proposed, the share that are correct |
+| **Recall** | Of all true links, the share that are found |
+| **F1** | The harmonic mean of precision and recall |
+| **Benchmark** | A dataset with defined tasks, ground truth, evaluation procedures and reference results |
+| **Seed** | The initial value that makes pseudorandom generation reproducible, other inputs unchanged |
+| **Transliteration** | Writing a name from one writing system in another, often in several valid ways |
+| **Mojibake** | Garbled text from a wrong character-encoding conversion, such as `é` shown as `Ã©` |
 
 ## References
 
-**Statistics and data sources**
-- Institut de la statistique du Québec, *Les noms de famille au Québec* (L. Duchesne). <https://statistique.quebec.ca/fr/document/noms-de-famille-au-quebec>
-- Institut de la statistique du Québec, *Noms de famille au Québec : aspects statistiques et distribution spatiale*. <https://statistique.quebec.ca/fr/document/noms-de-famille-au-quebec-aspects-statistiques-et-distribution-spatiale>
-- Article citing the ISQ figures (Érudit). <https://www.erudit.org/en/culture/hq1056841/hq050/66162ac.pdf>
-- Retraite Québec, *Banque de prénoms – Filles*, Données Québec (CC BY 4.0). <https://donneesquebec.ca/recherche/fr/dataset/banque-de-prenoms-filles>
-- Retraite Québec, *Banque de prénoms – Garçons*, Données Québec (CC BY 4.0). <https://www.donneesquebec.ca/recherche/fr/dataset/banque-de-prenoms-garcons>
-- Retraite Québec, *Banque de prénoms*. <https://www.retraitequebec.gouv.qc.ca/en/services-en-ligne-outils/banque-de-prenoms/Pages/banque-de-prenoms.aspx>
-- Institut de la statistique du Québec, graduates with a bachelor's degree or higher, 2023. <https://statistique.quebec.ca/en/fichier/diplomes-baccalaureat-et-superieur-2023.pdf>
-- Institut de la statistique du Québec, *En 2021, plus de femmes que d'hommes au doctorat*. <https://statistique.quebec.ca/fr/communique/2021-plus-femmes-que-hommes-doctorat>
-- Bureau de coopération interuniversitaire, enrolments, fall 2024. <https://bci-qc.ca/wp-content/uploads/2024/10/Inscriptions_automne2024.pdf>
-- Gouvernement du Québec, *Portrait statistique des étudiants internationaux*. <https://www.quebec.ca/education/indicateurs-statistiques/enseignement-superieur/etudes-statistiques/portrait-statistique-etudiants-internationaux>
+### Dataset documentation
 
-**Contact data that cannot be real**
-- D. Eastlake, A. Panitz, *Reserved Top Level DNS Names*, RFC 2606, 1999 (`.example`).
-- North American Numbering Plan Administration (NANPA): numbering rules (to verify: exchanges never start with 0 or 1). <https://www.nationalnanpa.com/>
-- *555 (telephone number)* and *Fictitious telephone number*, Wikipedia (the reserved range 555-0100 to 555-0199). <https://en.wikipedia.org/wiki/555_(telephone_number)>, <https://en.wikipedia.org/wiki/Fictitious_telephone_number>
+[1] Gebru, T., Morgenstern, J., Vecchione, B., Vaughan, J. W., Wallach, H., Daumé III, H., & Crawford, K. (2021). "Datasheets for datasets." *Communications of the ACM*, 64(12), 86–92. <https://doi.org/10.1145/3458723>
 
-**Errors, string similarity and record linkage** *(to verify: exact pages and figures)*
-- F. J. Damerau, "A technique for computer detection and correction of spelling errors", *Communications of the ACM*, 7(3), 1964.
-- V. I. Levenshtein, "Binary codes capable of correcting deletions, insertions, and reversals", *Soviet Physics Doklady*, 10(8), 1966.
-- J. J. Pollock, A. Zamora, "Automatic spelling correction in scientific and scholarly text", *Communications of the ACM*, 27(4), 1984.
-- K. Kukich, "Techniques for automatically correcting words in text", *ACM Computing Surveys*, 24(4), 1992.
-- I. P. Fellegi, A. B. Sunter, "A theory for record linkage", *Journal of the American Statistical Association*, 64(328), 1969.
-- M. A. Jaro, "Advances in record-linkage methodology as applied to matching the 1985 census of Tampa, Florida", *Journal of the American Statistical Association*, 84(406), 1989.
-- W. E. Winkler, "String comparator metrics and enhanced decision rules in the Fellegi–Sunter model of record linkage", *Proceedings of the Section on Survey Research Methods*, American Statistical Association, 1990.
-- P. Christen, *Data Matching: Concepts and Techniques for Record Linkage, Entity Resolution, and Duplicate Detection*, Springer, 2012.
-- P. Christen, "Febrl: an open source data cleaning, deduplication and record linkage system with a graphical user interface", KDD 2008 (demonstration).
-- P. Christen, D. Vatsalan, "Flexible and extensible generation and corruption of personal data", CIKM 2013.
-- J. de Bruin, *Python Record Linkage Toolkit* (`recordlinkage`), documentation. <https://recordlinkage.readthedocs.io/>
-- Synthea, synthetic patient generator (MITRE). <https://synthetichealth.github.io/synthea/>
+### Existing datasets, tools and applications
+
+[2] Cortez, P. (2008). *Student Performance* [Dataset]. UCI Machine Learning Repository. <https://doi.org/10.24432/C5TG7T>
+
+[3] Realinho, V., Vieira Martins, M., Machado, J., & Baptista, L. (2021). *Predict Students' Dropout and Academic Success* [Dataset]. UCI Machine Learning Repository. <https://doi.org/10.24432/C5MC89>
+
+[4] *Student Information, Academic Performance Dataset* [Dataset]. Kaggle. <https://www.kaggle.com/datasets/robertwilliams123/student-informationacademic-performance-dataset> (accessed 21 October 2026; licence and provenance to verify).
+
+[5] *Student Information Dataset* [Dataset]. Kaggle. <https://www.kaggle.com/datasets/zeeshier/student-information-dataset> (accessed 21 October 2026; licence and provenance to verify).
+
+[6] *Student Name, Address, City and Country* [Dataset]. Kaggle. <https://www.kaggle.com/datasets/akashdoss/student-name-address-city-and-country> (accessed 21 October 2026; licence and provenance to verify).
+
+[7] Christen, P. (2008). "Febrl — A freely available record linkage system with a graphical user interface." *Proceedings of the Australasian Workshop on Health Data and Knowledge Management*, 17–25. See also the documentation of the FEBRL datasets in the Python Record Linkage Toolkit: <https://github.com/J535D165/recordlinkage/blob/master/docs/ref-datasets.rst>
+
+[8] Christen, P., & Vatsalan, D. (2013). "Flexible and extensible generation and corruption of personal data." *Proceedings of the 22nd ACM International Conference on Information and Knowledge Management (CIKM)*. <https://doi.org/10.1145/2505515.2507815>
+
+[9] MITRE. *Synthea: Synthetic Patient Population Simulator*. <https://github.com/synthetichealth/synthea>
+
+[10] San Andres, D. *Alumni Information System* [Software]. GitHub. <https://github.com/dericsanandres/Alumni-Information-System-Web>
+
+[11] Talati, V. *Alumni Connect* [Software]. GitHub. <https://github.com/vrajtalati/Alumni_Connect>
+
+### Error-model research
+
+[12] Damerau, F. J. (1964). "A technique for computer detection and correction of spelling errors." *Communications of the ACM*, 7(3), 171–176. <https://doi.org/10.1145/363958.363994>
+
+[13] Pollock, J. J., & Zamora, A. (1983). "Collection and characterization of spelling errors in scientific and scholarly text." *Journal of the American Society for Information Science*, 34(1), 51–58. <https://doi.org/10.1002/asi.4630340108>
+
+[14] Kukich, K. (1992). "Techniques for automatically correcting words in text." *ACM Computing Surveys*, 24(4), 377–439. <https://doi.org/10.1145/146370.146380>
+
+### Québec statistics
+
+[15] Duchesne, L. (2006). *Les noms de famille au Québec : aspects statistiques et distribution spatiale*. Institut de la statistique du Québec. <https://statistique.quebec.ca/fr/document/noms-de-famille-au-quebec-aspects-statistiques-et-distribution-spatiale>
+
+[16] Institut de la statistique du Québec. *Noms de famille au Québec*, detailed tables, including the 1,000 most frequent family names and 2005 estimates. <https://statistique.quebec.ca/fr/document/noms-de-famille-au-quebec>
+
+[17] Retraite Québec. *Banque de prénoms — Filles*, 1980–2025. Données Québec, CC BY 4.0. <https://www.donneesquebec.ca/recherche/dataset/banque-de-prenoms-filles>
+
+[18] Retraite Québec. *Banque de prénoms — Garçons*, 1980–2025. Données Québec, CC BY 4.0. <https://www.donneesquebec.ca/recherche/dataset/banque-de-prenoms-garcons>
+
+[19] Institut de la statistique du Québec. *Diplômés du baccalauréat et des cycles supérieurs, 2023*. <https://statistique.quebec.ca/en/fichier/diplomes-baccalaureat-et-superieur-2023.pdf>
+
+[20] Institut de la statistique du Québec. *En 2021, plus de femmes que d'hommes au doctorat* [Press release]. <https://statistique.quebec.ca/fr/communique/2021-plus-femmes-que-hommes-doctorat>
+
+### Contact-data design
+
+[21] Eastlake, D., & Panitz, A. (1999). *Reserved Top Level DNS Names*. RFC 2606. <https://www.rfc-editor.org/rfc/rfc2606>
+
+[22] North American Numbering Plan Administrator. *About the North American Numbering Plan* (format `NXX-NXX-XXXX`, where `N` is 2 to 9). <https://www.nanpa.com/about>
+
+### Record-linkage methods
+
+[23] Christen, P. (2012). *Data Matching: Concepts and Techniques for Record Linkage, Entity Resolution, and Duplicate Detection*. Springer.
+
+[24] Levenshtein, V. I. (1966). "Binary codes capable of correcting deletions, insertions, and reversals." *Soviet Physics Doklady*, 10(8), 707–710.
+
+[25] Jaro, M. A. (1989). "Advances in record-linkage methodology as applied to matching the 1985 census of Tampa, Florida." *Journal of the American Statistical Association*, 84(406), 414–420. <https://doi.org/10.1080/01621459.1989.10478785>
+
+[26] Winkler, W. E. (1990). "String comparator metrics and enhanced decision rules in the Fellegi–Sunter model of record linkage." *Proceedings of the Section on Survey Research Methods*, American Statistical Association, 354–359.
+
+[27] Fellegi, I. P., & Sunter, A. B. (1969). "A theory for record linkage." *Journal of the American Statistical Association*, 64(328), 1183–1210. <https://doi.org/10.1080/01621459.1969.10501049>
+
+### Research transparency
+
+[28] Committee on Publication Ethics (COPE). *Authorship and AI tools* [Position statement]. <https://doi.org/10.24318/cCVRZBms>
 
 ---
 
-*Licence of this document: CC BY 4.0 (see [LICENSE-DOCS](../../LICENSE-DOCS)).*
+*Licence of this document: CC BY 4.0 (see the repository's licence files).*
